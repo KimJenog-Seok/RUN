@@ -123,10 +123,10 @@ def split_company_from_broadcast(text):
             return cleaned, key, PLATFORM_MAP[key]
     return text, "", ""
 
-try:
-    # 환경변수 검증
-    if not ECOMM_ID or not ECOMM_PW:
-        raise RuntimeError("환경변수 ECOMM_ID/ECOMM_PW 가 설정되어야 합니다")
+
+# 환경변수 검증
+if not ECOMM_ID or not ECOMM_PW:
+    raise RuntimeError("환경변수 ECOMM_ID/ECOMM_PW 가 설정되어야 합니다")
 
 # =========================
 # 1) 로그인 (헤드리스/지연 대응)
