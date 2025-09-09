@@ -30,9 +30,9 @@ jobs:
           pip install selenium pandas gspread google-auth google-auth-oauthlib
 
       - name: Run main.py
-        env:
-          ECOMM_ID: ${{ secrets.ECOMM_ID }}
-          ECOMM_PW: ${{ secrets.ECOMM_PW }}
-          GSVC_JSON_B64: ${{ secrets.GSVC_JSON_B64 }}
-        run: |
-          python main.py
+         env:
+         ECOMM_ID: ${{ secrets.ID1 }}
+         ECOMM_PW: ${{ secrets.PW1 }}
+         GSVC_JSON_B64: ${{ secrets.KEY1 }}
+    run: |
+     python main.py
