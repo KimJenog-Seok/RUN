@@ -245,9 +245,6 @@ finally:
     # =========================
     # 7) 인사이트(단일 시트: INS_전일)
     # =========================
-    import re
-import base64
-    import math
 
     def _to_int_kor(s):
         if s is None:
