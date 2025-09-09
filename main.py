@@ -2,6 +2,9 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
 import time
 import os
 import pandas as pd
@@ -125,53 +128,68 @@ try:
     if not ECOMM_ID or not ECOMM_PW:
         raise RuntimeError("환경변수 ECOMM_ID/ECOMM_PW 가 설정되어야 합니다")
 
-    # =========================
-    # 1) 로그인
-    # =========================
-    driver.get("https://live.ecomm-data.com")
-    login_link = driver.find_element(By.LINK_TEXT, "로그인")
-    driver.execute_script("arguments[0].click();", login_link)
+# =========================
+# 1) 로그인 (헤드리스/지연 대응)
+# =========================
+driver.get("https://live.ecomm-data.com")
 
-    timeout = 10
-    t0 = time.time()
-    while "/user/sign_in" not in driver.current_url:
-        if time.time() - t0 > timeout:
-            raise Exception("로그인 페이지 진입 실패 (타임아웃)")
-        time.sleep(0.5)
-    print("✅ 로그인 페이지 진입 완료:", driver.current_url)
+# 로그인 링크 대기 후 클릭 (가시성+클릭가능 대기)
+login_link = WebDriverWait(driver, 15).until(
+    EC.element_to_be_clickable((By.LINK_TEXT, "로그인"))
+)
+driver.execute_script("arguments[0].click();", login_link)
 
-    time.sleep(1)
-    email_input = [e for e in driver.find_elements(By.CSS_SELECTOR, "input[name='email']") if e.is_displayed() and e.is_enabled()][0]
-    password_input = [p for p in driver.find_elements(By.CSS_SELECTOR, "input[name='password']") if p.is_displayed() and p.is_enabled()][0]
-    email_input.clear(); email_input.send_keys(ECOMM_ID)
-    password_input.clear(); password_input.send_keys(ECOMM_PW)
-    time.sleep(0.5)
-    form = driver.find_element(By.TAG_NAME, "form")
-    login_button = form.find_element(By.XPATH, ".//button[contains(text(), '로그인')]")
-    driver.execute_script("arguments[0].click();", login_button)
-    print("✅ 로그인 시도!")
-    time.sleep(5)
-    print("✅ 로그인 절차 완료!")
+# 로그인 페이지 진입 대기
+WebDriverWait(driver, 15).until(lambda d: "/user/sign_in" in d.current_url)
+print("✅ 로그인 페이지 진입 완료:", driver.current_url)
 
-    # =========================
-    # 2) 세션 안내창 처리(있으면)
-    # =========================
-    time.sleep(2)
-    try:
-        session_items = driver.find_elements(By.CSS_SELECTOR, "ul.jsx-6ce14127fb5f1929 > li")
-        if session_items:
-            print(f"[INFO] 세션 초과: {len(session_items)}개 → 맨 아래 세션 선택 후 '종료 후 접속'")
-            session_items[-1].click()
-            time.sleep(1)
-            close_btn = driver.find_element(By.XPATH, "//button[text()='종료 후 접속']")
-            if close_btn.is_enabled():
-                driver.execute_script("arguments[0].click();", close_btn)
-                print("✅ '종료 후 접속' 버튼 클릭 완료")
-                time.sleep(2)
-        else:
-            print("[INFO] 세션 초과 안내창 없음")
-    except Exception as e:
-        print("[WARN] 세션 처리 중 예외(무시):", e)
+# 폼 요소 대기
+email_input = WebDriverWait(driver, 15).until(
+    EC.visibility_of_element_located((By.CSS_SELECTOR, "input[name='email']"))
+)
+password_input = WebDriverWait(driver, 15).until(
+    EC.visibility_of_element_located((By.CSS_SELECTOR, "input[name='password']"))
+)
+
+# ↘️ 시크릿(환경변수) 사용
+email_input.clear();    email_input.send_keys(ECOMM_ID)
+password_input.clear(); password_input.send_keys(ECOMM_PW)
+
+# 버튼 클릭 (form 내부의 '로그인' 버튼)
+form = driver.find_element(By.TAG_NAME, "form")
+login_button = form.find_element(By.XPATH, ".//button[contains(text(), '로그인')]")
+driver.execute_script("arguments[0].click();", login_button)
+print("✅ 로그인 시도!")
+
+# URL이 /user/sign_in 에서 벗어날 때까지 대기
+WebDriverWait(driver, 20).until(lambda d: "/user/sign_in" not in d.current_url)
+
+# =========================
+# 1-1) 동시 접속 세션 정리(맨 아래 선택 → '종료 후 접속')
+# =========================
+try:
+    # 세션 리스트가 뜰 경우를 최대 8초 대기
+    session_items = WebDriverWait(driver, 8).until(
+        EC.presence_of_all_elements_located((By.CSS_SELECTOR, "ul.jsx-6ce14127fb5f1929 > li"))
+    )
+    if session_items:
+        print(f"[INFO] 세션 초과: {len(session_items)}개 → 맨 아래 선택 후 '종료 후 접속'")
+        driver.execute_script("arguments[0].click();", session_items[-1])
+        close_btn = WebDriverWait(driver, 8).until(
+            EC.element_to_be_clickable((By.XPATH, "//button[text()='종료 후 접속']"))
+        )
+        driver.execute_script("arguments[0].click();", close_btn)
+        # 세션 처리 후 홈으로 복귀
+        WebDriverWait(driver, 10).until(lambda d: "/user/sign_in" not in d.current_url)
+        time.sleep(1)
+    else:
+        print("[INFO] 세션 초과 안내창 없음")
+except Exception:
+    # 안내창 자체가 없거나 셀렉터 변경 시에도 흐름 계속
+    print("[INFO] 세션 초과 안내창 없음(또는 스킵)")
+
+print("✅ 로그인 절차 완료!")
+
 
     # =========================
     # 3) 랭킹 페이지 크롤링
