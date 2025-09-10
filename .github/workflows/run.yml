@@ -31,8 +31,8 @@ jobs:
 
       - name: Run main.py
         env:
-          ECOMM_ID: ${{ secrets.ID1 }}
-          ECOMM_PW: ${{ secrets.PW1 }}
-          GSVC_JSON_B64: ${{ secrets.KEY1 }}
+          ID1: ${{ secrets.ID1 }} # 👈 이 부분이 핵심
+          PW1: ${{ secrets.PW1 }} # 👈 이 부분이 핵심
+          KEY1: ${{ secrets.KEY1 }} # 👈 이 부분이 핵심
         run: |
           python main.py
