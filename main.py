@@ -190,7 +190,7 @@ print("✅ 로그인 절차 완료!")
     # =========================
     # 2) 세션 안내창 처리(있으면)
     # =========================
-    time.sleep(2)
+time.sleep(2)
     try:
         session_items = driver.find_elements(By.CSS_SELECTOR, "ul.jsx-6ce14127fb5f1929 > li")
         if session_items:
