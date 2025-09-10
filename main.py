@@ -30,15 +30,26 @@ if GSVC_JSON_B64:
 # =========================
 
 options = Options()
-options.add_argument("--headless=new")           # 화면 없어도 동작
-options.add_argument("--disable-gpu")            # GPU 의존 제거
-options.add_argument("--no-sandbox")             # 세션0(스케줄러) 호환
-options.add_argument("--disable-dev-shm-usage")  # 메모리 제한 회피
-options.add_argument("--window-size=1920,1080")  # 레이아웃 고정
+options.add_argument("--headless=new")
+options.add_argument("--disable-gpu")
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
+options.add_argument("--window-size=1920,1080")
+
+# 👇 추가: 헤드리스/자동화 탐지 회피
+options.add_argument("--lang=ko-KR")
+options.add_argument("--disable-blink-features=AutomationControlled")
+options.add_argument("--disable-infobars")
+options.add_argument("--start-maximized")
+options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
 
 driver = webdriver.Chrome(options=options)
 
-
+# 👇 추가: navigator.webdriver 숨기기 (탐지 우회)
+driver.execute_cdp_cmd(
+    "Page.addScriptToEvaluateOnNewDocument",
+    {"source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"}
+)
 
 # Google Sheets
 SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/1kravfzRDMhArlt-uqEYjMIn0BVCY4NtRZekswChLTzo/edit?usp=sharing'
