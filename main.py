@@ -16,9 +16,10 @@ from datetime import datetime, timedelta, timezone
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 # === 환경변수에서 자격 증명 읽기 ===
-ECOMM_ID = os.environ.get("ECOMM_ID", "")
-ECOMM_PW = os.environ.get("ECOMM_PW", "")
-GSVC_JSON_B64 = os.environ.get("GSVC_JSON_B64", "")
+# 👇 사용자가 설정한 변수명으로 변경
+ECOMM_ID = os.environ.get("ID1", "")
+ECOMM_PW = os.environ.get("PW1", "")
+GSVC_JSON_B64 = os.environ.get("KEY1", "")
 SERVICE_ACCOUNT_INFO = {}
 if GSVC_JSON_B64:
     try:
@@ -28,7 +29,8 @@ if GSVC_JSON_B64:
 
 # === 환경변수 검증 ===
 if not ECOMM_ID or not ECOMM_PW:
-    raise RuntimeError("환경변수 ECOMM_ID/ECOMM_PW 가 설정되어야 합니다")
+    # 👇 메시지에서 변수명도 변경
+    raise RuntimeError("환경변수 ID1/PW1 가 설정되어야 합니다")
 
 # =========================
 # 환경/설정
