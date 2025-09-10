@@ -154,19 +154,23 @@ print("✅ 로그인 시도!")
 # =========================
 try:
     print("✅ 로그인 후, 세션 팝업을 15초 동안 기다립니다...")
-    # 팝업의 "종료 후 접속" 버튼이 나타날 때까지 기다립니다.
-    close_btn = WebDriverWait(driver, 15).until(
-        EC.element_to_be_clickable((By.XPATH, "//button[text()='종료 후 접속']"))
+    
+    # 팝업의 세션 목록이 나타날 때까지 기다립니다.
+    #     session_items = WebDriverWait(driver, 15).until(
+        EC.presence_of_all_elements_located((By.CSS_SELECTOR, "ul.jsx-6ce14127fb5f1929 > li"))
     )
 
     # 팝업이 나타났습니다.
-    print("⚠️ 세션 팝업이 나타났습니다. 기존 세션을 종료합니다.")
-    # session_items = driver.find_elements(By.CSS_SELECTOR, "ul.jsx-6ce14127fb5f1929 > li")
-    # if session_items:
-    #     print("[INFO] 맨 아래 항목 선택")
-    #     driver.execute_script("arguments[0].click();", session_items[-1])
-    #     time.sleep(1)
+    print(f"⚠️ 세션 팝업이 나타났습니다. {len(session_items)}개 중 마지막 세션을 종료합니다.")
+    
+    # 맨 아래 항목을 클릭합니다.
+    session_items[-1].click()
+    time.sleep(1)
 
+    # '종료 후 접속' 버튼을 찾아서 클릭합니다.
+    close_btn = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.XPATH, "//button[text()='종료 후 접속']"))
+    )
     driver.execute_script("arguments[0].click();", close_btn)
     print("✅ '종료 후 접속' 버튼 클릭 완료")
 
@@ -181,6 +185,7 @@ except TimeoutException:
 
 except Exception as e:
     print("[WARN] 세션 처리 중 다른 예외가 발생했습니다:", e)
+
 
 # =========================
 # 3) 랭킹 페이지 크롤링
