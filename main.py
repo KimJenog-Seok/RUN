@@ -13,7 +13,7 @@ import gspread
 import json
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta, timezone
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, StaleElementReferenceException
 
 # === 환경변수에서 자격 증명 읽기 ===
 ECOMM_ID = os.environ.get("ID1", "")
@@ -126,38 +126,33 @@ def split_company_from_broadcast(text):
 # 1) 로그인 (헤드리스/지연 대응)
 # =========================
 driver.get("https://live.ecomm-data.com")
-login_link = driver.find_element(By.LINK_TEXT, "로그인")
+login_link = WebDriverWait(driver, 20).until(
+    EC.element_to_be_clickable((By.LINK_TEXT, "로그인"))
+)
 driver.execute_script("arguments[0].click();", login_link)
 
-timeout = 10
-t0 = time.time()
-while "/user/sign_in" not in driver.current_url:
-    if time.time() - t0 > timeout:
-        raise Exception("로그인 페이지 진입 실패 (타임아웃)")
-    time.sleep(0.5)
+WebDriverWait(driver, 20).until(lambda d: "/user/sign_in" in d.current_url)
 print("✅ 로그인 페이지 진입 완료:", driver.current_url)
 
-time.sleep(1)
-email_input = [e for e in driver.find_elements(By.CSS_SELECTOR, "input[name='email']") if e.is_displayed() and e.is_enabled()][0]
-password_input = [p for p in driver.find_elements(By.CSS_SELECTOR, "input[name='password']") if p.is_displayed() and p.is_enabled()][0]
+email_input = WebDriverWait(driver, 20).until(
+    EC.visibility_of_element_located((By.CSS_SELECTOR, "input[name='email']"))
+)
+password_input = WebDriverWait(driver, 20).until(
+    EC.visibility_of_element_located((By.CSS_SELECTOR, "input[name='password']"))
+)
 
-# ↘️ 시크릿(환경변수) 사용
 email_input.clear();    email_input.send_keys(ECOMM_ID)
 password_input.clear(); password_input.send_keys(ECOMM_PW)
 
-time.sleep(0.5)
-
-# 버튼 클릭 (form 내부의 '로그인' 버튼)
 form = driver.find_element(By.TAG_NAME, "form")
 login_button = form.find_element(By.XPATH, ".//button[contains(text(), '로그인')]")
 driver.execute_script("arguments[0].click();", login_button)
 print("✅ 로그인 시도!")
-time.sleep(5)
 
 # =========================
-# 2) 세션 안내창 처리(있으면)
+# 2) 세션 안내창 처리
 # =========================
-time.sleep(2)
+time.sleep(2) # 페이지 로드 대기
 try:
     session_items = driver.find_elements(By.CSS_SELECTOR, "ul.jsx-6ce14127fb5f1929 > li")
     if session_items:
@@ -171,14 +166,13 @@ try:
             time.sleep(2)
     else:
         print("[INFO] 세션 초과 안내창 없음")
-    except Exception as e:
-        print("[WARN] 세션 처리 중 예외(무시):", e)
-        return False
+except Exception as e:
+    print("[WARN] 세션 처리 중 예외(무시):", e)
 
 print("✅ 로그인 절차 완료!")
 
 # =========================
-# 2) 랭킹 페이지 크롤링
+# 3) 랭킹 페이지 크롤링
 # =========================
 ranking_url = "https://live.ecomm-data.com/ranking?period=1&cid=&date="
 driver.get(ranking_url)
@@ -210,7 +204,7 @@ print(df.head())
 print(f"총 {len(df)}개 상품 정보 추출 완료")
 
 # =========================
-# 3) '홈쇼핑TOP100' 시트 갱신
+# 4) '홈쇼핑TOP100' 시트 갱신
 # =========================
 data_to_upload = [df.columns.values.tolist()] + df.values.tolist()
 worksheet.clear()
@@ -218,7 +212,7 @@ worksheet.update(values=data_to_upload, range_name='A1')
 print("✅ 구글시트 업로드 완료!")
 
 # =========================
-# 4) 어제 날짜 새 시트 생성 & 값 복사
+# 5) 어제 날짜 새 시트 생성 & 값 복사
 # =========================
 base_title = make_yesterday_title_kst()           # 예: "8/22"
 target_title = unique_sheet_title(base_title)     # 중복 시 -1, -2…
@@ -231,7 +225,7 @@ new_ws.update('A1', source_values)
 print(f"✅ 새 시트 생성 및 값 붙여넣기 완료 → 시트명: {target_title}")
 
 # =========================
-# 5) 방송정보에서 회사명 제거 + 회사명/구분 열 추가
+# 6) 방송정보에서 회사명 제거 + 회사명/구분 열 추가
 # =========================
 values = new_ws.get_all_values() or [[""]]
 header = values[0]
@@ -254,7 +248,7 @@ new_ws.update('A1', final_data)
 print("✅ 방송정보 말미 회사명 제거 + 회사명/홈쇼핑구분 열 추가 완료")
 
 # =========================
-# 6) 인사이트(단일 시트: INS_전일)
+# 7) 인사이트(단일 시트: INS_전일)
 # =========================
 def _to_int_kor(s):
     if s is None:
@@ -298,7 +292,7 @@ def format_num(v):
     except: return str(v)
     return f"{v:,}"
 
-# 6-1) 날짜 시트 new_ws 기준 DF
+# 7-1) 날짜 시트 new_ws 기준 DF
 values = new_ws.get_all_values() or [[""]]
 if not values or len(values) < 2:
     raise Exception("INS_전일 생성 실패: 데이터 행이 없습니다.")
@@ -310,7 +304,7 @@ for col in ["판매량","매출액","홈쇼핑구분","회사명","분류"]:
 df_ins["판매량_int"] = df_ins["판매량"].apply(_to_int_kor)
 df_ins["매출액_int"] = df_ins["매출액"].apply(_to_int_kor)
 
-# 6-2) 집계 → 포맷
+# 7-2) 집계 → 포맷
 def _agg_two(group_cols):
     g = (df_ins.groupby(group_cols, dropna=False)
                 .agg(매출합=("매출액_int","sum"),
@@ -333,7 +327,7 @@ gubun_table = _format_df(gubun_tbl)
 plat_table  = _format_df(plat_tbl)
 cat_table   = _format_df(cat_tbl)
 
-# 6-3) 기본 섹션(A/B/C)
+# 7-3) 기본 섹션(A/B/C)
 sheet_data = []
 sheet_data.append(["[LIVE/TC 집계]"])
 sheet_data += gubun_table
@@ -346,7 +340,7 @@ sheet_data.append([""])
 sheet_data.append(["[상품분류(분류) 집계]"])
 sheet_data += cat_table
 
-# 6-4) 신규 진입 상품(최신 날짜 전체 비교)
+# 7-4) 신규 진입 상품(최신 날짜 전체 비교)
 def _norm_text(s: str) -> str:
     if s is None: return ""
     t = str(s).replace("\n"," ").replace("\r"," ").replace("\t"," ")
@@ -422,7 +416,7 @@ else:
     sheet_data += [["방송정보","회사명","분류","판매량","매출액"],
                    ["(비교 불가)", "", "", "", ""]]
 
-# 6-5) INS_전일 upsert
+# 7-5) INS_전일 upsert
 TARGET_TITLE = "INS_전일"
 try:
     ws = sh.worksheet(TARGET_TITLE)
