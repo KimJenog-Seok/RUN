@@ -13,6 +13,7 @@ import gspread
 import json
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta, timezone
+from selenium.common.exceptions import TimeoutException
 
 # === 환경변수에서 자격 증명 읽기 ===
 ECOMM_ID = os.environ.get("ECOMM_ID", "")
@@ -154,57 +155,44 @@ login_button = form.find_element(By.XPATH, ".//button[contains(text(), '로그�
 driver.execute_script("arguments[0].click();", login_button)
 print("✅ 로그인 시도!")
 
-# URL이 /user/sign_in 에서 벗어날 때까지 대기
-WebDriverWait(driver, 20).until(lambda d: "/user/sign_in" not in d.current_url)
-
 # =========================
-# 1-1) 동시 접속 세션 정리(맨 아래 선택 → '종료 후 접속')
+# 1-1) 로그인 후 페이지 이동 및 세션 정리
 # =========================
 try:
-    # 세션 리스트가 뜰 경우를 최대 8초 대기
-    session_items = WebDriverWait(driver, 8).until(
-        EC.presence_of_all_elements_located((By.CSS_SELECTOR, "ul.jsx-6ce14127fb5f1929 > li"))
+    # 로그인 성공 후 랭킹 페이지의 테이블이 나타날 때까지 기다림
+    WebDriverWait(driver, 20).until(
+        EC.presence_of_element_located((By.TAG_NAME, "table"))
     )
-    if session_items:
-        print(f"[INFO] 세션 초과: {len(session_items)}개 → 맨 아래 선택 후 '종료 후 접속'")
-        driver.execute_script("arguments[0].click();", session_items[-1])
-        close_btn = WebDriverWait(driver, 8).until(
-            EC.element_to_be_clickable((By.XPATH, "//button[text()='종료 후 접속']"))
+    print("✅ 로그인 후 랭킹 페이지 진입 완료!")
+except TimeoutException:
+    # 테이블이 20초 안에 나타나지 않으면 세션 초과 팝업이 떴을 수 있으므로 처리 시도
+    try:
+        session_items = WebDriverWait(driver, 10).until(
+            EC.presence_of_all_elements_located((By.CSS_SELECTOR, "ul.jsx-6ce14127fb5f1929 > li"))
         )
-        driver.execute_script("arguments[0].click();", close_btn)
-        # 세션 처리 후 홈으로 복귀
-        WebDriverWait(driver, 10).until(lambda d: "/user/sign_in" not in d.current_url)
-        time.sleep(1)
-    else:
-        print("[INFO] 세션 초과 안내창 없음")
-except Exception:
-    # 안내창 자체가 없거나 셀렉터 변경 시에도 흐름 계속
-    print("[INFO] 세션 초과 안내창 없음(또는 스킵)")
+        if session_items:
+            print(f"[INFO] 세션 초과: {len(session_items)}개 → 맨 아래 선택 후 '종료 후 접속'")
+            driver.execute_script("arguments[0].click();", session_items[-1])
+            close_btn = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, "//button[text()='종료 후 접속']"))
+            )
+            driver.execute_script("arguments[0].click();", close_btn)
+            print("✅ '종료 후 접속' 버튼 클릭 완료")
+            # 세션 처리 후 다시 랭킹 페이지 진입을 기다림
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.TAG_NAME, "table"))
+            )
+            print("✅ 세션 처리 후 랭킹 페이지 재진입 성공!")
+    except Exception as e:
+        print(f"⚠️ 세션 처리 실패 또는 다른 오류 발생: {e}")
+        # 세션 처리 실패 시에는 오류를 다시 발생시켜야 함
+        raise
 
 print("✅ 로그인 절차 완료!")
 
-# =========================
-# 2) 세션 안내창 처리(있으면)
-# =========================
-time.sleep(2)
-try:
-    session_items = driver.find_elements(By.CSS_SELECTOR, "ul.jsx-6ce14127fb5f1929 > li")
-    if session_items:
-        print(f"[INFO] 세션 초과: {len(session_items)}개 → 맨 아래 세션 선택 후 '종료 후 접속'")
-        session_items[-1].click()
-        time.sleep(1)
-        close_btn = driver.find_element(By.XPATH, "//button[text()='종료 후 접속']")
-        if close_btn.is_enabled():
-            driver.execute_script("arguments[0].click();", close_btn)
-            print("✅ '종료 후 접속' 버튼 클릭 완료")
-            time.sleep(2)
-    else:
-        print("[INFO] 세션 초과 안내창 없음")
-except Exception as e:
-    print("[WARN] 세션 처리 중 예외(무시):", e)
 
 # =========================
-# 3) 랭킹 페이지 크롤링
+# 2) 랭킹 페이지 크롤링
 # =========================
 ranking_url = "https://live.ecomm-data.com/ranking?period=1&cid=&date="
 driver.get(ranking_url)
@@ -236,7 +224,7 @@ print(df.head())
 print(f"총 {len(df)}개 상품 정보 추출 완료")
 
 # =========================
-# 4) '홈쇼핑TOP100' 시트 갱신
+# 3) '홈쇼핑TOP100' 시트 갱신
 # =========================
 data_to_upload = [df.columns.values.tolist()] + df.values.tolist()
 worksheet.clear()
@@ -244,7 +232,7 @@ worksheet.update(values=data_to_upload, range_name='A1')
 print("✅ 구글시트 업로드 완료!")
 
 # =========================
-# 5) 어제 날짜 새 시트 생성 & 값 복사
+# 4) 어제 날짜 새 시트 생성 & 값 복사
 # =========================
 base_title = make_yesterday_title_kst()           # 예: "8/22"
 target_title = unique_sheet_title(base_title)     # 중복 시 -1, -2…
@@ -257,7 +245,7 @@ new_ws.update('A1', source_values)
 print(f"✅ 새 시트 생성 및 값 붙여넣기 완료 → 시트명: {target_title}")
 
 # =========================
-# 6) 방송정보에서 회사명 제거 + 회사명/구분 열 추가
+# 5) 방송정보에서 회사명 제거 + 회사명/구분 열 추가
 # =========================
 values = new_ws.get_all_values() or [[""]]
 header = values[0]
@@ -280,7 +268,7 @@ new_ws.update('A1', final_data)
 print("✅ 방송정보 말미 회사명 제거 + 회사명/홈쇼핑구분 열 추가 완료")
 
 # =========================
-# 7) 인사이트(단일 시트: INS_전일)
+# 6) 인사이트(단일 시트: INS_전일)
 # =========================
 def _to_int_kor(s):
     if s is None:
@@ -324,7 +312,7 @@ def format_num(v):
     except: return str(v)
     return f"{v:,}"
 
-# 7-1) 날짜 시트 new_ws 기준 DF
+# 6-1) 날짜 시트 new_ws 기준 DF
 values = new_ws.get_all_values() or [[""]]
 if not values or len(values) < 2:
     raise Exception("INS_전일 생성 실패: 데이터 행이 없습니다.")
@@ -336,7 +324,7 @@ for col in ["판매량","매출액","홈쇼핑구분","회사명","분류"]:
 df_ins["판매량_int"] = df_ins["판매량"].apply(_to_int_kor)
 df_ins["매출액_int"] = df_ins["매출액"].apply(_to_int_kor)
 
-# 7-2) 집계 → 포맷
+# 6-2) 집계 → 포맷
 def _agg_two(group_cols):
     g = (df_ins.groupby(group_cols, dropna=False)
                 .agg(매출합=("매출액_int","sum"),
@@ -359,7 +347,7 @@ gubun_table = _format_df(gubun_tbl)
 plat_table  = _format_df(plat_tbl)
 cat_table   = _format_df(cat_tbl)
 
-# 7-3) 기본 섹션(A/B/C)
+# 6-3) 기본 섹션(A/B/C)
 sheet_data = []
 sheet_data.append(["[LIVE/TC 집계]"])
 sheet_data += gubun_table
@@ -372,7 +360,7 @@ sheet_data.append([""])
 sheet_data.append(["[상품분류(분류) 집계]"])
 sheet_data += cat_table
 
-# 7-4) 신규 진입 상품(최신 날짜 전체 비교)
+# 6-4) 신규 진입 상품(최신 날짜 전체 비교)
 def _norm_text(s: str) -> str:
     if s is None: return ""
     t = str(s).replace("\n"," ").replace("\r"," ").replace("\t"," ")
@@ -448,7 +436,7 @@ else:
     sheet_data += [["방송정보","회사명","분류","판매량","매출액"],
                    ["(비교 불가)", "", "", "", ""]]
 
-# 7-5) INS_전일 upsert
+# 6-5) INS_전일 upsert
 TARGET_TITLE = "INS_전일"
 try:
     ws = sh.worksheet(TARGET_TITLE)
