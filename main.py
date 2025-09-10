@@ -160,8 +160,8 @@ print("✅ 로그인 시도!")
 # =========================
 try:
     # 로그인 성공 후 랭킹 페이지의 테이블이 나타날 때까지 기다림
-    # 👇 대기 시간 20초로 변경
-    WebDriverWait(driver, 30).until(
+    # 👇 대기 시간 40초로 변경
+    WebDriverWait(driver, 40).until(
         EC.visibility_of_element_located((By.TAG_NAME, "table"))
     )
     print("✅ 로그인 후 랭킹 페이지 진입 완료!")
@@ -169,20 +169,21 @@ except TimeoutException:
     print("⚠️ 랭킹 페이지 진입 실패. 세션 팝업 또는 기타 오류 확인 중...")
     try:
         # 랭킹 페이지로 이동하지 않았다면, 세션 팝업이 떴을 가능성을 확인
-        # 👇 대기 시간 15초로 변경
-        session_items = WebDriverWait(driver, 15).until(
+        # 👇 대기 시간 20초로 변경
+        session_items = WebDriverWait(driver, 20).until(
             EC.presence_of_all_elements_located((By.CSS_SELECTOR, "ul.jsx-6ce14127fb5f1929 > li"))
         )
         if session_items:
             print(f"[INFO] 세션 초과: {len(session_items)}개 → 맨 아래 선택 후 '종료 후 접속'")
             driver.execute_script("arguments[0].click();", session_items[-1])
-            close_btn = WebDriverWait(driver, 15).until(
+            close_btn = WebDriverWait(driver, 20).until(
                 EC.element_to_be_clickable((By.XPATH, "//button[text()='종료 후 접속']"))
             )
             driver.execute_script("arguments[0].click();", close_btn)
             print("✅ '종료 후 접속' 버튼 클릭 완료")
             # 세션 처리 후 다시 랭킹 페이지 진입을 기다림
-            WebDriverWait(driver, 20).until(
+            # 👇 대기 시간 30초로 변경
+            WebDriverWait(driver, 30).until(
                 EC.visibility_of_element_located((By.TAG_NAME, "table"))
             )
             print("✅ 세션 처리 후 랭킹 페이지 재진입 성공!")
