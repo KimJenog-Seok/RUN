@@ -194,9 +194,9 @@ print("✅ 로그인 절차 완료!")
     # =========================
     # 3) 랭킹 페이지 크롤링
     # =========================
-    ranking_url = "https://live.ecomm-data.com/ranking?period=1&cid=&date="
-    driver.get(ranking_url)
-    time.sleep(3)
+ranking_url = "https://live.ecomm-data.com/ranking?period=1&cid=&date="
+driver.get(ranking_url)
+time.sleep(3)
 
     table = driver.find_element(By.TAG_NAME, 'table')
     tbody = table.find_element(By.TAG_NAME, 'tbody')
