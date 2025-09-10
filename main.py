@@ -25,6 +25,9 @@ if GSVC_JSON_B64:
     except Exception as e:
         print("[WARN] 서비스계정 Base64 디코딩 실패:", e)
 
+# === 환경변수 검증 ===
+if not ECOMM_ID or not ECOMM_PW:
+    raise RuntimeError("환경변수 ECOMM_ID/ECOMM_PW 가 설정되어야 합니다")
 
 # =========================
 # 환경/설정
@@ -118,14 +121,7 @@ def split_company_from_broadcast(text):
             return cleaned, key, PLATFORM_MAP[key]
     return text, "", ""
 
-    # 환경변수 검증
-    if not ECOMM_ID or not ECOMM_PW:
-        raise RuntimeError("환경변수 ECOMM_ID/ECOMM_PW 가 설정되어야 합니다")
-
-    # =========================
-    # 1) 로그인
-    # =========================
-   # =========================
+# =========================
 # 1) 로그인 (헤드리스/지연 대응)
 # =========================
 driver.get("https://live.ecomm-data.com")
@@ -187,29 +183,29 @@ except Exception:
 
 print("✅ 로그인 절차 완료!")
 
-    # =========================
-    # 2) 세션 안내창 처리(있으면)
-    # =========================
+# =========================
+# 2) 세션 안내창 처리(있으면)
+# =========================
 time.sleep(2)
-    try:
-        session_items = driver.find_elements(By.CSS_SELECTOR, "ul.jsx-6ce14127fb5f1929 > li")
-        if session_items:
-            print(f"[INFO] 세션 초과: {len(session_items)}개 → 맨 아래 세션 선택 후 '종료 후 접속'")
-            session_items[-1].click()
-            time.sleep(1)
-            close_btn = driver.find_element(By.XPATH, "//button[text()='종료 후 접속']")
-            if close_btn.is_enabled():
-                driver.execute_script("arguments[0].click();", close_btn)
-                print("✅ '종료 후 접속' 버튼 클릭 완료")
-                time.sleep(2)
-        else:
-            print("[INFO] 세션 초과 안내창 없음")
-    except Exception as e:
-        print("[WARN] 세션 처리 중 예외(무시):", e)
+try:
+    session_items = driver.find_elements(By.CSS_SELECTOR, "ul.jsx-6ce14127fb5f1929 > li")
+    if session_items:
+        print(f"[INFO] 세션 초과: {len(session_items)}개 → 맨 아래 세션 선택 후 '종료 후 접속'")
+        session_items[-1].click()
+        time.sleep(1)
+        close_btn = driver.find_element(By.XPATH, "//button[text()='종료 후 접속']")
+        if close_btn.is_enabled():
+            driver.execute_script("arguments[0].click();", close_btn)
+            print("✅ '종료 후 접속' 버튼 클릭 완료")
+            time.sleep(2)
+    else:
+        print("[INFO] 세션 초과 안내창 없음")
+except Exception as e:
+    print("[WARN] 세션 처리 중 예외(무시):", e)
 
-    # =========================
-    # 3) 랭킹 페이지 크롤링
-    # =========================
+# =========================
+# 3) 랭킹 페이지 크롤링
+# =========================
 ranking_url = "https://live.ecomm-data.com/ranking?period=1&cid=&date="
 driver.get(ranking_url)
 time.sleep(3)
@@ -218,7 +214,7 @@ table = driver.find_element(By.TAG_NAME, 'table')
 tbody = table.find_element(By.TAG_NAME, 'tbody')
 rows = tbody.find_elements(By.TAG_NAME, 'tr')
 
-  data = []
+data = []
 for row in rows:
     cols = row.find_elements(By.TAG_NAME, 'td')
     if len(cols) >= 8:
@@ -442,7 +438,7 @@ if date_ws_objs:
         new_table.append(["(신규 진입 없음)", "", "", "", ""])
     else:
         tmp = new_items.copy()
-        tmp["__매출액_int"] = tmp["매출액"].apply(_to_int_kор)
+        tmp["__매출액_int"] = tmp["매출액"].apply(_to_int_kor)
         tmp = tmp.sort_values("__매출액_int", ascending=False)
         new_table += tmp[["방송정보","회사명","분류","판매량","매출액"]].astype(str).values.tolist()
     sheet_data += new_table
@@ -455,7 +451,8 @@ else:
 # 7-5) INS_전일 upsert
 TARGET_TITLE = "INS_전일"
 try:
-    ws = sh.worksheet(TARGET_TITLE); ws.clear()
+    ws = sh.worksheet(TARGET_TITLE)
+    ws.clear()
 except gspread.exceptions.WorksheetNotFound:
     rows_cnt = max(2, len(sheet_data))
     cols_cnt = max(2, max(len(r) for r in sheet_data))
