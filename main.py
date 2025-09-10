@@ -126,77 +126,55 @@ def split_company_from_broadcast(text):
 # 1) 로그인 (헤드리스/지연 대응)
 # =========================
 driver.get("https://live.ecomm-data.com")
-
-# 로그인 링크 대기 후 클릭 (가시성+클릭가능 대기)
-login_link = WebDriverWait(driver, 20).until(
-    EC.element_to_be_clickable((By.LINK_TEXT, "로그인"))
-)
+login_link = driver.find_element(By.LINK_TEXT, "로그인")
 driver.execute_script("arguments[0].click();", login_link)
 
-# 로그인 페이지 진입 대기
-WebDriverWait(driver, 20).until(lambda d: "/user/sign_in" in d.current_url)
+timeout = 10
+t0 = time.time()
+while "/user/sign_in" not in driver.current_url:
+    if time.time() - t0 > timeout:
+        raise Exception("로그인 페이지 진입 실패 (타임아웃)")
+    time.sleep(0.5)
 print("✅ 로그인 페이지 진입 완료:", driver.current_url)
 
-# 폼 요소 대기
-email_input = WebDriverWait(driver, 20).until(
-    EC.visibility_of_element_located((By.CSS_SELECTOR, "input[name='email']"))
-)
-password_input = WebDriverWait(driver, 20).until(
-    EC.visibility_of_element_located((By.CSS_SELECTOR, "input[name='password']"))
-)
+time.sleep(1)
+email_input = [e for e in driver.find_elements(By.CSS_SELECTOR, "input[name='email']") if e.is_displayed() and e.is_enabled()][0]
+password_input = [p for p in driver.find_elements(By.CSS_SELECTOR, "input[name='password']") if p.is_displayed() and p.is_enabled()][0]
 
 # ↘️ 시크릿(환경변수) 사용
 email_input.clear();    email_input.send_keys(ECOMM_ID)
 password_input.clear(); password_input.send_keys(ECOMM_PW)
+
+time.sleep(0.5)
 
 # 버튼 클릭 (form 내부의 '로그인' 버튼)
 form = driver.find_element(By.TAG_NAME, "form")
 login_button = form.find_element(By.XPATH, ".//button[contains(text(), '로그인')]")
 driver.execute_script("arguments[0].click();", login_button)
 print("✅ 로그인 시도!")
+time.sleep(5)
 
 # =========================
-# 1-1) 로그인 후 페이지 이동 및 세션 정리
+# 2) 세션 안내창 처리(있으면)
 # =========================
+time.sleep(2)
 try:
-    # 팝업이 나타나는지 먼저 확인 (최대 15초)
-    print("✅ 로그인 후, 세션 팝업을 15초 동안 기다립니다...")
-    close_btn = WebDriverWait(driver, 15).until(
-        EC.element_to_be_clickable((By.XPATH, "//button[text()='종료 후 접속']"))
-    )
-    
-    # 팝업이 나타난 경우
-    print("⚠️ 세션 팝업이 나타났습니다. 기존 세션을 종료하고 재접속합니다.")
     session_items = driver.find_elements(By.CSS_SELECTOR, "ul.jsx-6ce14127fb5f1929 > li")
     if session_items:
-        driver.execute_script("arguments[0].click();", session_items[-1])
-        print("[INFO] 세션 초과: 맨 아래 항목 선택 완료")
-    
-    driver.execute_script("arguments[0].click();", close_btn)
-    print("✅ '종료 후 접속' 버튼 클릭 완료")
-    
-    # 세션 처리 후 랭킹 페이지 진입을 다시 기다림
-    WebDriverWait(driver, 20).until(
-        EC.visibility_of_element_located((By.TAG_NAME, "table"))
-    )
-    print("✅ 세션 처리 후 랭킹 페이지 재진입 성공!")
-    
-except TimeoutException:
-    # 팝업이 나타나지 않은 경우 (정상적인 로그인)
-    print("✅ 세션 팝업이 나타나지 않았습니다. 랭킹 페이지로 바로 이동합니다.")
-    
-    try:
-        # 랭킹 페이지의 테이블이 나타날 때까지 기다림 (최대 20초)
-        WebDriverWait(driver, 20).until(
-            EC.visibility_of_element_located((By.TAG_NAME, "table"))
-        )
-        print("✅ 랭킹 페이지 진입 완료!")
-    except TimeoutException:
-        # 팝업도, 랭킹 페이지도 나타나지 않은 경우
-        raise TimeoutException("로그인 후 랭킹 페이지나 세션 팝업을 찾을 수 없습니다. 환경변수를 확인하거나 사이트 상태를 점검해주세요.")
+        print(f"[INFO] 세션 초과: {len(session_items)}개 → 맨 아래 세션 선택 후 '종료 후 접속'")
+        session_items[-1].click()
+        time.sleep(1)
+        close_btn = driver.find_element(By.XPATH, "//button[text()='종료 후 접속']")
+        if close_btn.is_enabled():
+            driver.execute_script("arguments[0].click();", close_btn)
+            print("✅ '종료 후 접속' 버튼 클릭 완료")
+            time.sleep(2)
+    else:
+        print("[INFO] 세션 초과 안내창 없음")
+    except Exception as e:
+        print("[WARN] 세션 처리 중 예외(무시):", e)
 
 print("✅ 로그인 절차 완료!")
-
 
 # =========================
 # 2) 랭킹 페이지 크롤링
