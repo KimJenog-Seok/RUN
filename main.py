@@ -13,7 +13,7 @@ import gspread
 import json
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta, timezone
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 # === 환경변수에서 자격 증명 읽기 ===
 ECOMM_ID = os.environ.get("ECOMM_ID", "")
@@ -165,8 +165,9 @@ try:
     )
     print("✅ 로그인 후 랭킹 페이지 진입 완료!")
 except TimeoutException:
-    # 테이블이 20초 안에 나타나지 않으면 세션 초과 팝업이 떴을 수 있으므로 처리 시도
+    print("⚠️ 랭킹 페이지 진입 실패. 세션 팝업 또는 기타 오류 확인 중...")
     try:
+        # 랭킹 페이지로 이동하지 않았다면, 세션 팝업이 떴을 가능성을 확인
         session_items = WebDriverWait(driver, 10).until(
             EC.presence_of_all_elements_located((By.CSS_SELECTOR, "ul.jsx-6ce14127fb5f1929 > li"))
         )
@@ -185,8 +186,8 @@ except TimeoutException:
             print("✅ 세션 처리 후 랭킹 페이지 재진입 성공!")
     except Exception as e:
         print(f"⚠️ 세션 처리 실패 또는 다른 오류 발생: {e}")
-        # 세션 처리 실패 시에는 오류를 다시 발생시켜야 함
-        raise
+        # 세션 처리 실패 시에는 오류를 다시 발생시켜서 원인 파악을 돕습니다.
+        raise TimeoutException("로그인 후 랭킹 페이지나 세션 팝업을 찾을 수 없습니다. 환경변수를 확인하거나 사이트 상태를 점검해주세요.")
 
 print("✅ 로그인 절차 완료!")
 
