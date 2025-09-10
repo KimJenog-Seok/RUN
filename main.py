@@ -173,6 +173,7 @@ try:
         print("[INFO] 세션 초과 안내창 없음")
     except Exception as e:
         print("[WARN] 세션 처리 중 예외(무시):", e)
+        return False
 
 print("✅ 로그인 절차 완료!")
 
