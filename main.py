@@ -16,7 +16,6 @@ from datetime import datetime, timedelta, timezone
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 # === 환경변수에서 자격 증명 읽기 ===
-# 👇 사용자가 설정한 변수명으로 변경
 ECOMM_ID = os.environ.get("ID1", "")
 ECOMM_PW = os.environ.get("PW1", "")
 GSVC_JSON_B64 = os.environ.get("KEY1", "")
@@ -29,7 +28,6 @@ if GSVC_JSON_B64:
 
 # === 환경변수 검증 ===
 if not ECOMM_ID or not ECOMM_PW:
-    # 👇 메시지에서 변수명도 변경
     raise RuntimeError("환경변수 ID1/PW1 가 설정되어야 합니다")
 
 # =========================
@@ -130,20 +128,20 @@ def split_company_from_broadcast(text):
 driver.get("https://live.ecomm-data.com")
 
 # 로그인 링크 대기 후 클릭 (가시성+클릭가능 대기)
-login_link = WebDriverWait(driver, 15).until(
+login_link = WebDriverWait(driver, 20).until(
     EC.element_to_be_clickable((By.LINK_TEXT, "로그인"))
 )
 driver.execute_script("arguments[0].click();", login_link)
 
 # 로그인 페이지 진입 대기
-WebDriverWait(driver, 15).until(lambda d: "/user/sign_in" in d.current_url)
+WebDriverWait(driver, 20).until(lambda d: "/user/sign_in" in d.current_url)
 print("✅ 로그인 페이지 진입 완료:", driver.current_url)
 
 # 폼 요소 대기
-email_input = WebDriverWait(driver, 15).until(
+email_input = WebDriverWait(driver, 20).until(
     EC.visibility_of_element_located((By.CSS_SELECTOR, "input[name='email']"))
 )
-password_input = WebDriverWait(driver, 15).until(
+password_input = WebDriverWait(driver, 20).until(
     EC.visibility_of_element_located((By.CSS_SELECTOR, "input[name='password']"))
 )
 
@@ -162,28 +160,30 @@ print("✅ 로그인 시도!")
 # =========================
 try:
     # 로그인 성공 후 랭킹 페이지의 테이블이 나타날 때까지 기다림
-    WebDriverWait(driver, 20).until(
-        EC.presence_of_element_located((By.TAG_NAME, "table"))
+    # 👇 대기 시간 20초로 변경
+    WebDriverWait(driver, 30).until(
+        EC.visibility_of_element_located((By.TAG_NAME, "table"))
     )
     print("✅ 로그인 후 랭킹 페이지 진입 완료!")
 except TimeoutException:
     print("⚠️ 랭킹 페이지 진입 실패. 세션 팝업 또는 기타 오류 확인 중...")
     try:
         # 랭킹 페이지로 이동하지 않았다면, 세션 팝업이 떴을 가능성을 확인
-        session_items = WebDriverWait(driver, 10).until(
+        # 👇 대기 시간 15초로 변경
+        session_items = WebDriverWait(driver, 15).until(
             EC.presence_of_all_elements_located((By.CSS_SELECTOR, "ul.jsx-6ce14127fb5f1929 > li"))
         )
         if session_items:
             print(f"[INFO] 세션 초과: {len(session_items)}개 → 맨 아래 선택 후 '종료 후 접속'")
             driver.execute_script("arguments[0].click();", session_items[-1])
-            close_btn = WebDriverWait(driver, 10).until(
+            close_btn = WebDriverWait(driver, 15).until(
                 EC.element_to_be_clickable((By.XPATH, "//button[text()='종료 후 접속']"))
             )
             driver.execute_script("arguments[0].click();", close_btn)
             print("✅ '종료 후 접속' 버튼 클릭 완료")
             # 세션 처리 후 다시 랭킹 페이지 진입을 기다림
-            WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.TAG_NAME, "table"))
+            WebDriverWait(driver, 20).until(
+                EC.visibility_of_element_located((By.TAG_NAME, "table"))
             )
             print("✅ 세션 처리 후 랭킹 페이지 재진입 성공!")
     except Exception as e:
