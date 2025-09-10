@@ -159,38 +159,44 @@ print("✅ 로그인 시도!")
 # 1-1) 로그인 후 페이지 이동 및 세션 정리
 # =========================
 try:
-    # 로그인 성공 후 랭킹 페이지의 테이블이 나타날 때까지 기다림
-    # 👇 대기 시간 40초로 변경
-    WebDriverWait(driver, 40).until(
-        EC.visibility_of_element_located((By.TAG_NAME, "table"))
-    )
-    print("✅ 로그인 후 랭킹 페이지 진입 완료!")
-except TimeoutException:
-    print("⚠️ 랭킹 페이지 진입 실패. 세션 팝업 또는 기타 오류 확인 중...")
-    try:
-        # 랭킹 페이지로 이동하지 않았다면, 세션 팝업이 떴을 가능성을 확인
-        # 👇 대기 시간 20초로 변경
-        session_items = WebDriverWait(driver, 20).until(
-            EC.presence_of_all_elements_located((By.CSS_SELECTOR, "ul.jsx-6ce14127fb5f1929 > li"))
+    # 랭킹 페이지 테이블과 세션 팝업 중 하나라도 나타날 때까지 기다림
+    wait_time_seconds = 40
+    print(f"✅ 로그인 후, 랭킹 페이지 또는 세션 팝업을 {wait_time_seconds}초 동안 기다립니다...")
+    
+    # 두 가지 조건을 동시에 기다리는 새로운 WebDriverWait
+    wait_condition = WebDriverWait(driver, wait_time_seconds).until(
+        EC.any_of(
+            EC.presence_of_element_located((By.TAG_NAME, "table")),
+            EC.presence_of_element_located((By.XPATH, "//button[text()='종료 후 접속']"))
         )
+    )
+
+    if wait_condition.tag_name == "table":
+        # 랭킹 페이지가 바로 나타난 경우
+        print("✅ 랭킹 페이지가 바로 나타났습니다.")
+    else:
+        # 세션 팝업이 나타난 경우
+        print("⚠️ 세션 팝업이 나타났습니다. 기존 세션을 종료하고 재접속합니다.")
+        # 세션 항목들을 찾아서 맨 아래 항목 클릭
+        session_items = driver.find_elements(By.CSS_SELECTOR, "ul.jsx-6ce14127fb5f1929 > li")
         if session_items:
-            print(f"[INFO] 세션 초과: {len(session_items)}개 → 맨 아래 선택 후 '종료 후 접속'")
             driver.execute_script("arguments[0].click();", session_items[-1])
-            close_btn = WebDriverWait(driver, 20).until(
-                EC.element_to_be_clickable((By.XPATH, "//button[text()='종료 후 접속']"))
-            )
-            driver.execute_script("arguments[0].click();", close_btn)
-            print("✅ '종료 후 접속' 버튼 클릭 완료")
-            # 세션 처리 후 다시 랭킹 페이지 진입을 기다림
-            # 👇 대기 시간 30초로 변경
-            WebDriverWait(driver, 30).until(
-                EC.visibility_of_element_located((By.TAG_NAME, "table"))
-            )
-            print("✅ 세션 처리 후 랭킹 페이지 재진입 성공!")
-    except Exception as e:
-        print(f"⚠️ 세션 처리 실패 또는 다른 오류 발생: {e}")
-        # 세션 처리 실패 시에는 오류를 다시 발생시켜서 원인 파악을 돕습니다.
-        raise TimeoutException("로그인 후 랭킹 페이지나 세션 팝업을 찾을 수 없습니다. 환경변수를 확인하거나 사이트 상태를 점검해주세요.")
+            print("[INFO] 세션 초과: 맨 아래 항목 선택 완료")
+        
+        # '종료 후 접속' 버튼 클릭
+        close_btn = driver.find_element(By.XPATH, "//button[text()='종료 후 접속']")
+        driver.execute_script("arguments[0].click();", close_btn)
+        print("✅ '종료 후 접속' 버튼 클릭 완료")
+        
+        # 세션 처리 후 랭킹 페이지 진입을 다시 기다림
+        WebDriverWait(driver, 30).until(
+            EC.visibility_of_element_located((By.TAG_NAME, "table"))
+        )
+        print("✅ 세션 처리 후 랭킹 페이지 재진입 성공!")
+    
+except TimeoutException as e:
+    print(f"⚠️ 로그인 후 페이지 로딩 실패: {e}")
+    raise TimeoutException("로그인 후 랭킹 페이지나 세션 팝업을 찾을 수 없습니다. 환경변수를 확인하거나 사이트 상태를 점검해주세요.")
 
 print("✅ 로그인 절차 완료!")
 
