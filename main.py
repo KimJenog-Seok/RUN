@@ -239,15 +239,13 @@ except Exception as e:
     import traceback
     print("❌ 전체 자동화 과정 중 에러 발생:", e)
     print(traceback.format_exc())
+    
 finally:
     driver.quit()
 
     # =========================
     # 7) 인사이트(단일 시트: INS_전일)
     # =========================
-    import re
-import base64
-    import math
 
     def _to_int_kor(s):
         if s is None:
