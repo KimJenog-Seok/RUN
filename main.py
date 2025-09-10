@@ -156,7 +156,7 @@ try:
     print("✅ 로그인 후, 세션 팝업을 15초 동안 기다립니다...")
     
     # 팝업의 세션 목록이 나타날 때까지 기다립니다.
-    #     session_items = WebDriverWait(driver, 15).until(
+    session_items = WebDriverWait(driver, 15).until(
         EC.presence_of_all_elements_located((By.CSS_SELECTOR, "ul.jsx-6ce14127fb5f1929 > li"))
     )
 
@@ -185,7 +185,6 @@ except TimeoutException:
 
 except Exception as e:
     print("[WARN] 세션 처리 중 다른 예외가 발생했습니다:", e)
-
 
 # =========================
 # 3) 랭킹 페이지 크롤링
