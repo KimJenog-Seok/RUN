@@ -145,26 +145,20 @@ email_input.send_keys(ECOMM_ID)
 password_input.clear()
 password_input.send_keys(ECOMM_PW)
 
-# ✅ 화면 중앙을 강제로 클릭합니다.
-# 브라우저 창 크기를 가져옵니다.
-window_size = driver.get_window_size()
-window_width = window_size['width']
-window_height = window_size['height']
-
-# 화면 중앙 좌표를 계산합니다.
-center_x = window_width / 2
-center_y = window_height / 2
-
-# ActionChains를 사용하여 뷰포트의 (0, 0)에서 계산된 중앙 좌표로 이동 후 클릭합니다.
-actions = ActionChains(driver)
-actions.move_by_offset(center_x, center_y).click().perform()
-print(f"✅ 화면 중앙 ({center_x}, {center_y}) 좌표 클릭 성공!")
-time.sleep(1) # 클릭 후 페이지 반응을 기다립니다.
-
-# -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-# ✅ 로그인 성공 후 URL 변경을 기다립니다.
+# ✅ 가장 확실한 방법으로 로그인 버튼을 클릭합니다.
 try:
+    # form 태그를 찾습니다.
+    form_element = WebDriverWait(driver, 20).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, "form.sign_in_form__ZaLrU"))
+    )
+
+    # JavaScript를 사용하여 form 태그 내부의 첫 번째 button 요소를 클릭합니다.
+    driver.execute_script("arguments[0].querySelector('button').click();", form_element)
+    print("✅ 로그인 버튼 클릭 성공!")
+    
+    # -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+    # ✅ 로그인 성공 후 URL 변경을 기다립니다.
     WebDriverWait(driver, 20).until(
         EC.url_changes("https://live.ecomm-data.com/user/sign_in")
     )
@@ -194,9 +188,6 @@ try:
 except TimeoutException:
     print("❌ URL 변경이 감지되지 않았습니다. 로그인 버튼 클릭이 실패했거나, 로그인에 실패했습니다.")
     exit()
-
-
-
 
 # =========================
 # 3) 랭킹 페이지 크롤링
