@@ -155,9 +155,9 @@ window_height = window_size['height']
 center_x = window_width / 2
 center_y = window_height / 2
 
-# ActionChains를 사용하여 계산된 좌표를 클릭합니다.
+# ActionChains를 사용하여 뷰포트의 (0, 0)에서 계산된 중앙 좌표로 이동 후 클릭합니다.
 actions = ActionChains(driver)
-actions.move_to_location(center_x, center_y).click().perform()
+actions.move_by_offset(center_x, center_y).click().perform()
 print(f"✅ 화면 중앙 ({center_x}, {center_y}) 좌표 클릭 성공!")
 time.sleep(1) # 클릭 후 페이지 반응을 기다립니다.
 
@@ -193,7 +193,10 @@ try:
 
 except TimeoutException:
     print("❌ URL 변경이 감지되지 않았습니다. 로그인 버튼 클릭이 실패했거나, 로그인에 실패했습니다.")
-    exit()  
+    exit()
+
+
+
 
 # =========================
 # 3) 랭킹 페이지 크롤링
