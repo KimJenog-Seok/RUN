@@ -3,7 +3,7 @@ name: Run main.py daily (KST)
 on:
   schedule:
     # 매일 06:30 KST = 매일 21:30 UTC (UTC는 KST-9시간)
-    - cron: "50 8 * * *"
+    - cron: "30 21 * * *"
   workflow_dispatch:
 
 jobs:
