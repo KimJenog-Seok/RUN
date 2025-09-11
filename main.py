@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ECOMM 로그인 (하드코딩 계정)
-- 환경변수 없이 직접 계정 정보 입력
-- 빠른 진입 + 로그인 성공 판정 확인
+ECOMM 로그인 + 세션 초과 팝업 처리
+- 로그인 성공 + 세션 초과 안내 팝업이 있을 경우 자동으로 기존 세션 종료 처리
 """
 
 import sys
@@ -54,6 +53,29 @@ def save_debug(driver, tag: str):
     except Exception as e:
         print(f"[WARN] 디버그 저장 실패: {e}")
 
+def handle_session_popup(driver):
+    """동시 접속 초과 안내창이 있으면 → 기존 세션 종료 후 접속."""
+    time.sleep(2)
+    try:
+        session_items = driver.find_elements(By.CSS_SELECTOR, "ul > li")
+        session_items = [li for li in session_items if li.is_displayed()]
+        if session_items:
+            print(f"[INFO] 세션 초과: {len(session_items)}개 → 맨 아래 세션 선택 후 '종료 후 접속'")
+            session_items[-1].click()
+            time.sleep(1)
+            close_btns = driver.find_elements(By.XPATH, "//button[text()='종료 후 접속']")
+            for btn in close_btns:
+                if btn.is_enabled():
+                    driver.execute_script("arguments[0].click();", btn)
+                    print("✅ '종료 후 접속' 버튼 클릭 완료")
+                    time.sleep(2)
+                    return True
+        else:
+            print("[INFO] 세션 초과 안내창 없음")
+    except Exception as e:
+        print("[WARN] 세션 처리 중 예외(무시):", e)
+    return False
+
 def main():
     driver = make_driver()
     try:
@@ -86,6 +108,8 @@ def main():
         print("✅ 로그인 시도!")
 
         time.sleep(2)
+        handle_session_popup(driver)
+
         current_url = driver.current_url
         email_inputs = driver.find_elements(By.CSS_SELECTOR, "input[name='email']")
         if "/sign_in" in current_url and any(e.is_displayed() for e in email_inputs):
