@@ -150,41 +150,35 @@ driver.execute_script("arguments[0].click();", login_button)
 print("✅ 로그인 시도!")
 
 # =========================
-# 2) 세션 안내창 처리
+# 2) 세션 안내창 처리 (있으면)
 # =========================
+# 로그인 후, 세션 팝업이 나타날 때까지 15초 동안 기다립니다.
 try:
-    print("✅ 로그인 후, 세션 팝업을 15초 동안 기다립니다...")
-    
-    # 팝업의 세션 목록이 나타날 때까지 기다립니다.
-    session_items = WebDriverWait(driver, 15).until(
-        EC.presence_of_all_elements_located((By.CSS_SELECTOR, "ul.jsx-6ce14127fb5f1929 > li"))
+    session_popup = WebDriverWait(driver, 15).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, "div.ant-modal-content"))
     )
+    print("✅ 세션 팝업이 나타났습니다.")
 
-    # 팝업이 나타났습니다.
-    print(f"⚠️ 세션 팝업이 나타났습니다. {len(session_items)}개 중 마지막 세션을 종료합니다.")
-    
-    # 맨 아래 항목을 클릭합니다.
-    session_items[-1].click()
-    time.sleep(1)
+    # 세션 목록 중 마지막 세션 선택
+    session_items = session_popup.find_elements(By.CSS_SELECTOR, "ul.jsx-6ce14127fb5f1929 > li")
+    if session_items:
+        print(f"[INFO] 세션 초과: {len(session_items)}개 → 맨 아래 세션 선택 후 '종료 후 접속'")
+        session_items[-1].click()
+        time.sleep(1)
 
-    # '종료 후 접속' 버튼을 찾아서 클릭합니다.
-    close_btn = WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable((By.XPATH, "//button[text()='종료 후 접속']"))
-    )
-    driver.execute_script("arguments[0].click();", close_btn)
-    print("✅ '종료 후 접속' 버튼 클릭 완료")
-
-    # 로그인 재시도 후 랭킹 페이지로 이동
-    WebDriverWait(driver, 20).until(
-        EC.visibility_of_element_located((By.TAG_NAME, "table"))
-    )
-    print("✅ 로그인 및 랭킹 페이지 진입 완료!")
+        # '종료 후 접속' 버튼 클릭
+        close_btn = session_popup.find_element(By.XPATH, "//button[text()='종료 후 접속']")
+        driver.execute_script("arguments[0].click();", close_btn)
+        print("✅ '종료 후 접속' 버튼 클릭 완료")
+        time.sleep(2)
 
 except TimeoutException:
-    print("✅ 세션 팝업이 나타나지 않았습니다. 랭킹 페이지로 바로 이동합니다.")
+    print("❌ 15초 내에 세션 팝업이 나타나지 않았습니다. 로그인 실패로 추정됩니다. 다시 확인해주세요.")
+    # 필요에 따라 프로그램 종료 또는 재시도 로직 추가
+    # exit() 또는 raise Exception("로그인 실패")
 
 except Exception as e:
-    print("[WARN] 세션 처리 중 다른 예외가 발생했습니다:", e)
+    print(f"❌ 세션 처리 중 예외 발생: {e}")
 
 # =========================
 # 3) 랭킹 페이지 크롤링
