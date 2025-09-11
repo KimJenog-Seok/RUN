@@ -450,52 +450,6 @@ def main():
             ws = sh.add_worksheet(title=TARGET_TITLE, rows=rows_cnt, cols=cols_cnt)
         ws.update("A1", sheet_data)
 
-# --- 시트 순서 재배치: INS_전일을 1번째, 어제날짜 시트를 2번째로 ---
-try:
-    # sh: gspread Spreadsheet 객체
-    # ws: INS_전일 Worksheet (위에서 upsert된 객체)
-    # new_ws: 어제 날짜 Worksheet (앞서 만든 객체)
-    all_ws_now = sh.worksheets()
-
-    new_order = []
-    # 1) INS_전일 먼저
-    new_order.append(ws)
-    # 2) 어제 날짜 시트(중복 방지)
-    if new_ws.id != ws.id:
-        new_order.append(new_ws)
-    # 3) 나머지 시트들 순서대로
-    for w in all_ws_now:
-        if w.id not in (ws.id, new_ws.id):
-            new_order.append(w)
-
-    sh.reorder_worksheets(new_order)
-    print("✅ 시트 순서 재배치 완료: INS_전일=1번째, 어제시트=2번째")
-
-    # (옵션) 탭 색상도 설정 가능 — 원 코드 참고
-    # 빨강 지정 예시:
-    red = {"red": 1.0, "green": 0.0, "blue": 0.0}
-    req = {
-        "requests": [
-            {
-                "updateSheetProperties": {
-                    "properties": {"sheetId": ws.id, "tabColor": red},
-                    "fields": "tabColor"
-                }
-            },
-            {
-                "updateSheetProperties": {
-                    "properties": {"sheetId": new_ws.id, "tabColor": red},
-                    "fields": "tabColor"
-                }
-            }
-        ]
-    }
-    sh.batch_update(req)
-    print("✅ 탭 색상 적용 완료(빨강)")
-except Exception as e:
-    print("⚠️ 시트 순서/색상 처리 중 오류:", e)
-
-
         print("✅ INS_전일 생성/갱신 완료")
 
         # (선택) 스타일링/열폭/정렬은 필요 시 이어붙이면 됨
