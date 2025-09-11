@@ -133,6 +133,12 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 import time
 
+from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+import time
+
 # 로그인 페이지 진입 및 자격 증명 입력 (기존 코드와 동일)
 driver.get("https://live.ecomm-data.com")
 WebDriverWait(driver, 20).until(
@@ -159,23 +165,23 @@ print("✅ 로그인 시도!")
 
 # -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-# ✅ 동시접속 세션 안내창 처리 및 로그인 성공 확인
+# ✅ 로그인 성공 후 URL 변경을 기다립니다.
 try:
-    # 1. 20초 동안 '로그아웃' 버튼이 나타날 때까지 기다립니다.
-    #    이는 로그인 성공을 확인하는 가장 확실한 지표입니다.
+    # URL이 로그인 페이지 URL과 달라질 때까지 20초 동안 기다립니다.
     WebDriverWait(driver, 20).until(
-        EC.presence_of_element_located((By.XPATH, "//button[contains(text(), '로그아웃')]"))
+        EC.url_changes("https://live.ecomm-data.com/user/sign_in")
     )
-    print("✅ 로그인 성공 및 로그아웃 버튼 확인!")
-    
-    # 2. 로그인 성공 후, 5초 동안 세션 팝업이 나타나는지 확인합니다.
+    print("✅ URL 변경 완료. 로그인 성공으로 추정!")
+    print("현재 URL:", driver.current_url)
+
+    # 이제 동시접속 세션 안내창이 있는지 확인합니다.
     try:
         session_popup_container = WebDriverWait(driver, 5).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "div.ant-modal-content"))
         )
         print("✅ 세션 팝업이 나타났습니다.")
         
-        # 마지막 세션 항목과 '종료 후 접속' 버튼을 클릭합니다.
+        # 팝업 처리 로직 (기존 코드와 동일)
         session_items = session_popup_container.find_elements(By.TAG_NAME, "li")
         if session_items:
             driver.execute_script("arguments[0].click();", session_items[-1])
@@ -186,10 +192,10 @@ try:
             time.sleep(2)
 
     except TimeoutException:
-        print("✅ 세션 팝업 없음. 바로 다음 단계로 진행합니다.")
+        print("✅ 세션 팝업 없음. 바로 랭킹 페이지로 이동합니다.")
 
 except TimeoutException:
-    print("❌ 로그인 후 페이지가 로드되지 않았습니다. ID/PW를 다시 확인하거나 다른 문제가 있습니다.")
+    print("❌ URL 변경이 감지되지 않았습니다. 로그인 버튼 클릭이 실패했거나, 로그인에 실패했습니다.")
     exit()
 
 # =========================
