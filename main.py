@@ -126,42 +126,36 @@ def split_company_from_broadcast(text):
             cleaned = re.sub(pattern, "", t).rstrip()
             return cleaned, key, PLATFORM_MAP[key]
     return text, "", ""
-
-# 로그인 페이지 진입 및 자격 증명 입력 (기존 코드와 동일)
-driver.get("https://live.ecomm-data.com")
-WebDriverWait(driver, 20).until(
-    EC.element_to_be_clickable((By.LINK_TEXT, "로그인"))
-).click()
-
-WebDriverWait(driver, 20).until(lambda d: "/user/sign_in" in d.current_url)
+    
+# ✅ 로그인 페이지로 바로 이동
+driver.get("https://live.ecomm-data.com/user/sign_in")
 print("✅ 로그인 페이지 진입 완료:", driver.current_url)
 
-email_input = WebDriverWait(driver, 10).until(
+email_input = WebDriverWait(driver, 20).until(
     EC.visibility_of_element_located((By.CSS_SELECTOR, "input[name='email']"))
 )
-password_input = WebDriverWait(driver, 10).until(
+password_input = WebDriverWait(driver, 20).until(
     EC.visibility_of_element_located((By.CSS_SELECTOR, "input[name='password']"))
 )
 
-email_input.clear();    email_input.send_keys(ECOMM_ID)
-password_input.clear(); password_input.send_keys(ECOMM_PW)
+email_input.clear()
+email_input.send_keys(ECOMM_ID)
+password_input.clear()
+password_input.send_keys(ECOMM_PW)
 
-login_button = WebDriverWait(driver, 10).until(
-    EC.element_to_be_clickable((By.XPATH, "//button[text()='로그인']"))
+# ✅ 로그인 버튼을 찾는 가장 유연한 방법
+login_button = WebDriverWait(driver, 20).until(
+    EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), '로그인')]"))
 )
-
 print("✅ 로그인 버튼을 찾았습니다.")
 login_button.click()
 print("✅ 로그인 버튼 클릭 성공!")
-
-print("로그인 버튼 클릭 직후 현재 URL:", driver.current_url) 
 
 # -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # ✅ 로그인 성공 후 URL 변경을 기다립니다.
 try:
-    # URL이 로그인 페이지 URL과 달라질 때까지 10초 동안 기다립니다.
-    WebDriverWait(driver, 10).until(
+    WebDriverWait(driver, 20).until(
         EC.url_changes("https://live.ecomm-data.com/user/sign_in")
     )
     print("✅ URL 변경 완료. 로그인 성공으로 추정!")
@@ -174,7 +168,7 @@ try:
         )
         print("✅ 세션 팝업이 나타났습니다.")
         
-        # 팝업 처리 로직 (기존 코드와 동일)
+        # 팝업 처리 로직 (이전 코드와 동일)
         session_items = session_popup_container.find_elements(By.TAG_NAME, "li")
         if session_items:
             driver.execute_script("arguments[0].click();", session_items[-1])
