@@ -162,6 +162,7 @@ form = driver.find_element(By.TAG_NAME, "form")
 login_button = form.find_element(By.XPATH, ".//button[contains(text(), '로그인')]")
 driver.execute_script("arguments[0].click();", login_button)
 print("✅ 로그인 시도!")
+print("로그인 버튼 클릭 직후 현재 URL:", driver.current_url) 
 
 # -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
