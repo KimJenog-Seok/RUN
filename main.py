@@ -29,7 +29,7 @@ ECOMM_PW = "sales4580!!"
 
 RANKING_URL = "https://live.ecomm-data.com/ranking?period=1&cid=&date="
 
-# 구글 시트 설정 (URL/워크시트 이름은 PC 코드 기준)
+# 구글 시트 설정
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1kravfzRDMhArlt-uqEYjMIn0BVCY4NtRZekswChLTzo/edit?usp=sharing"
 WORKSHEET_NAME = "홈쇼핑TOP100"
 
@@ -46,7 +46,6 @@ def make_driver():
     opts.add_argument("--window-size=1920,1080")
     opts.add_argument("--lang=ko-KR")
     opts.add_argument("user-agent=Mozilla/5.0 Chrome/122.0.0.0 Safari/537.36")
-    # 자동화 플래그 완화
     opts.add_experimental_option("excludeSwitches", ["enable-automation"])
     opts.add_experimental_option("useAutomationExtension", False)
     driver = webdriver.Chrome(options=opts)
@@ -73,20 +72,18 @@ def save_debug(driver, tag: str):
         print(f"[WARN] 디버그 저장 실패: {e}")
 
 # ------------------------------------------------------------
-# 로그인 + 세션 초과 팝업 처리 (PC 성공 흐름 유지)
+# 로그인 + 세션 초과 팝업 처리
 # ------------------------------------------------------------
 def login_and_handle_session(driver):
     driver.get("https://live.ecomm-data.com")
     print("[STEP] 메인 페이지 진입 완료")
 
-    # '로그인' 링크 클릭
     login_link = WebDriverWait(driver, WAIT).until(
         EC.element_to_be_clickable((By.LINK_TEXT, "로그인"))
     )
     driver.execute_script("arguments[0].click();", login_link)
     print("[STEP] 로그인 링크 클릭 완료")
 
-    # /user/sign_in 진입 대기
     t0 = time.time()
     while "/user/sign_in" not in driver.current_url:
         if time.time() - t0 > WAIT:
@@ -106,10 +103,9 @@ def login_and_handle_session(driver):
     driver.execute_script("arguments[0].click();", login_button)
     print("✅ 로그인 시도!")
 
-    # 세션 초과 팝업 처리 (PC 코드 로직 유지)
+    # 세션 초과 팝업 처리
     time.sleep(2)
     try:
-        # 원코드: ul.jsx-... > li 사용. 해시형 클래스 대신 구조 기반으로 완화.
         session_items = [li for li in driver.find_elements(By.CSS_SELECTOR, "ul > li") if li.is_displayed()]
         if session_items:
             print(f"[INFO] 세션 초과: {len(session_items)}개 → 맨 아래 세션 선택 후 '종료 후 접속'")
@@ -137,7 +133,7 @@ def login_and_handle_session(driver):
     save_debug(driver, "login_success")
 
 # ------------------------------------------------------------
-# 랭킹 페이지 크롤링 (PC 코드 구조 유지)
+# 랭킹 페이지 크롤링
 # ------------------------------------------------------------
 def crawl_ranking(driver):
     driver.get(RANKING_URL)
@@ -190,7 +186,7 @@ def gs_client_from_env():
     return gspread.authorize(creds)
 
 # ------------------------------------------------------------
-# 플랫폼 매핑 및 유틸 (PC 코드 기반)
+# 플랫폼 매핑 및 유틸
 # ------------------------------------------------------------
 PLATFORM_MAP = {
     "CJ온스타일":"Live","CJ온스타일 플러스":"TC","GS홈쇼핑":"Live","GS홈쇼핑 마이샵":"TC",
@@ -204,7 +200,7 @@ def make_yesterday_title_kst():
     KST = timezone(timedelta(hours=9))
     today = datetime.now(KST).date()
     yday = today - timedelta(days=1)
-    return f"{yday.month}/{yday.day}"  # 예: "8/22"
+    return f"{yday.month}/{yday.day}"  # 예: "9/10"
 
 def unique_sheet_title(sh, base):
     title = base; n = 1
@@ -226,9 +222,6 @@ def split_company_from_broadcast(text):
             return cleaned, key, PLATFORM_MAP[key]
     return text, "", ""
 
-# ------------------------------------------------------------
-# 수치 파싱/포맷 & INS 집계 (PC 코드 기반)
-# ------------------------------------------------------------
 def _to_int_kor(s):
     if s is None:
         return 0
@@ -302,6 +295,9 @@ def _make_key(df):
 # ------------------------------------------------------------
 def main():
     driver = make_driver()
+    sh = None
+    worksheet = None
+    new_ws = None
     try:
         # 1) 로그인 + 세션 팝업 처리
         login_and_handle_session(driver)
@@ -312,25 +308,33 @@ def main():
         # 3) 구글 시트 인증
         gc = gs_client_from_env()
         sh = gc.open_by_url(SPREADSHEET_URL)
-        worksheet = sh.worksheet(WORKSHEET_NAME)
+        print("[GS] 스프레드시트 열기 OK")
 
-        # 4) '홈쇼핑TOP100' 시트 갱신
+        # 4) '홈쇼핑TOP100' 시트 확보(없으면 생성)
+        try:
+            worksheet = sh.worksheet(WORKSHEET_NAME)
+            print("[GS] 기존 워크시트 찾음:", WORKSHEET_NAME)
+        except gspread.exceptions.WorksheetNotFound:
+            worksheet = sh.add_worksheet(title=WORKSHEET_NAME, rows=2, cols=8)
+            print("[GS] 워크시트 생성:", WORKSHEET_NAME)
+
+        # 5) 메인 시트 업로드
         data_to_upload = [df.columns.tolist()] + df.astype(str).values.tolist()
         worksheet.clear()
         worksheet.update(values=data_to_upload, range_name="A1")
-        print("✅ 구글시트 업로드 완료!")
+        print(f"✅ 구글시트 업로드 완료 (행수: {len(data_to_upload)})")
 
-        # 5) 어제 날짜 새 시트 생성 & 값 복사
-        base_title = make_yesterday_title_kst()
+        # 6) 어제 날짜 새 시트 생성 & 값 복사 (반드시 생성되도록 가드)
+        base_title = make_yesterday_title_kst()     # 예: "9/10"
         target_title = unique_sheet_title(sh, base_title)
         source_values = worksheet.get_all_values() or [[""]]
         rows_cnt = max(2, len(source_values))
         cols_cnt = max(2, max(len(r) for r in source_values))
         new_ws = sh.add_worksheet(title=target_title, rows=rows_cnt, cols=cols_cnt)
         new_ws.update("A1", source_values)
-        print(f"✅ 새 시트 생성 및 값 붙여넣기 완료 → 시트명: {target_title}")
+        print(f"✅ 어제 날짜 시트 생성/복사 완료 → {target_title}")
 
-        # 6) 방송정보에서 회사명 제거 + 회사명/구분 열 추가
+        # 7) 방송정보 말미 회사명 제거 + 회사명/구분 열 추가
         values = new_ws.get_all_values() or [[""]]
         header = values[0] if values else []
         data_rows = values[1:] if len(values) >= 2 else []
@@ -348,17 +352,7 @@ def main():
         new_ws.update("A1", final_data)
         print("✅ 방송정보 말미 회사명 제거 + 회사명/홈쇼핑구분 열 추가 완료")
 
-    except Exception as e:
-        import traceback
-        print("❌ 전체 자동화 과정 중 에러 발생:", e)
-        print(traceback.format_exc())
-        raise
-    finally:
-        driver.quit()
-
-    # 7) INS_전일 (집계/출력)
-    try:
-        # 최신 데이터는 new_ws 기반
+        # 8) INS_전일 생성/갱신
         values = new_ws.get_all_values() or [[""]]
         if not values or len(values) < 2:
             raise Exception("INS_전일 생성 실패: 데이터 행이 없습니다.")
@@ -366,43 +360,20 @@ def main():
         df_ins = pd.DataFrame(body, columns=header)
 
         for col in ["판매량","매출액","홈쇼핑구분","회사명","분류"]:
-            if col not in df_ins.columns:
-                df_ins[col] = ""
+            if col not in df_ins.columns: df_ins[col] = ""
         df_ins["판매량_int"] = df_ins["판매량"].apply(_to_int_kor)
         df_ins["매출액_int"] = df_ins["매출액"].apply(_to_int_kor)
-
-        # 집계
-        def _agg_two(df, group_cols):
-            g = (df.groupby(group_cols, dropna=False)
-                    .agg(매출합=("매출액_int","sum"),
-                         판매량합=("판매량_int","sum"))
-                    .reset_index()
-                    .sort_values("매출합", ascending=False))
-            return g
-
-        def _format_df_table(df):
-            d = df.copy()
-            d["매출합"] = d["매출합"].apply(format_sales)
-            d["판매량합"] = d["판매량합"].apply(format_num)
-            return [d.columns.tolist()] + d.astype(str).values.tolist()
 
         gubun_tbl = _agg_two(df_ins, ["홈쇼핑구분"])
         plat_tbl  = _agg_two(df_ins, ["회사명"])
         cat_tbl   = _agg_two(df_ins, ["분류"])
 
         sheet_data = []
-        sheet_data.append(["[LIVE/TC 집계]"])
-        sheet_data += _format_df_table(gubun_tbl)
-        sheet_data.append([""])
+        sheet_data.append(["[LIVE/TC 집계]"]); sheet_data += _format_df_table(gubun_tbl); sheet_data.append([""])
+        sheet_data.append(["[플랫폼(회사명) 집계]"]); sheet_data += _format_df_table(plat_tbl); sheet_data.append([""])
+        sheet_data.append(["[상품분류(분류) 집계]"]); sheet_data += _format_df_table(cat_tbl)
 
-        sheet_data.append(["[플랫폼(회사명) 집계]"])
-        sheet_data += _format_df_table(plat_tbl)
-        sheet_data.append([""])
-
-        sheet_data.append(["[상품분류(분류) 집계]"])
-        sheet_data += _format_df_table(cat_tbl)
-
-        # 신규 진입 상품(최신 날짜 전체 비교)
+        # 신규 진입 상품 (최신 날짜 vs 과거 전체)
         def _norm_text(s: str) -> str:
             if s is None: return ""
             t = str(s).replace("\n"," ").replace("\r"," ").replace("\t"," ")
@@ -478,32 +449,41 @@ def main():
         # INS_전일 upsert
         TARGET_TITLE = "INS_전일"
         try:
-            ws = sh.worksheet(TARGET_TITLE)
-            ws.clear()
+            ins_ws = sh.worksheet(TARGET_TITLE)
+            ins_ws.clear()
+            print("[GS] INS_전일 기존 워크시트 찾음 → 초기화")
         except gspread.exceptions.WorksheetNotFound:
             rows_cnt = max(2, len(sheet_data))
             cols_cnt = max(2, max(len(r) for r in sheet_data))
-            ws = sh.add_worksheet(title=TARGET_TITLE, rows=rows_cnt, cols=cols_cnt)
-        ws.update("A1", sheet_data)
+            ins_ws = sh.add_worksheet(title=TARGET_TITLE, rows=rows_cnt, cols=cols_cnt)
+            print("[GS] INS_전일 워크시트 생성")
+
+        ins_ws.update("A1", sheet_data)
         print("✅ INS_전일 생성/갱신 완료")
 
-        # --- 시트 순서 재배치: INS_전일=1번째, 어제시트=2번째 ---
+        # 9) 탭 순서 재배치: INS_전일 1번째, 어제시트 2번째
         try:
             all_ws_now = sh.worksheets()
-            new_order = []
-            new_order.append(ws)            # 1) INS_전일
-            if new_ws.id != ws.id:          # 2) 어제 날짜 시트
+            new_order = [ins_ws]
+            if new_ws.id != ins_ws.id:
                 new_order.append(new_ws)
-            for w in all_ws_now:            # 3) 나머지 시트
-                if w.id not in (ws.id, new_ws.id):
+            for w in all_ws_now:
+                if w.id not in (ins_ws.id, new_ws.id):
                     new_order.append(w)
             sh.reorder_worksheets(new_order)
             print("✅ 시트 순서 재배치 완료: INS_전일=1번째, 어제시트=2번째")
-
         except Exception as e:
-            print("⚠️ 시트 순서/색상 처리 중 오류:", e)
+            print("⚠️ 시트 순서 재배치 오류:", e)
+
+        print("🎉 전체 파이프라인 완료")
 
     except Exception as e:
-        print("⚠️ INS_전일 생성 중 오류:", e)
+        import traceback
+        print("❌ 전체 자동화 과정 중 에러 발생:", e)
+        print(traceback.format_exc())
+        raise
+    finally:
+        driver.quit()
 
-    
+if __name__ == "__main__":
+    main()
