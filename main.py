@@ -126,7 +126,7 @@ def split_company_from_broadcast(text):
             cleaned = re.sub(pattern, "", t).rstrip()
             return cleaned, key, PLATFORM_MAP[key]
     return text, "", ""
-    
+
 # ✅ 로그인 페이지로 바로 이동
 driver.get("https://live.ecomm-data.com/user/sign_in")
 print("✅ 로그인 페이지 진입 완료:", driver.current_url)
@@ -138,18 +138,27 @@ password_input = WebDriverWait(driver, 20).until(
     EC.visibility_of_element_located((By.CSS_SELECTOR, "input[name='password']"))
 )
 
+# ID와 PW 입력
 email_input.clear()
 email_input.send_keys(ECOMM_ID)
 password_input.clear()
 password_input.send_keys(ECOMM_PW)
 
-# ✅ 로그인 버튼을 찾는 가장 유연한 방법
-login_button = WebDriverWait(driver, 20).until(
-    EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), '로그인')]"))
-)
-print("✅ 로그인 버튼을 찾았습니다.")
-login_button.click()
-print("✅ 로그인 버튼 클릭 성공!")
+# ✅ 화면 중앙을 강제로 클릭합니다.
+# 브라우저 창 크기를 가져옵니다.
+window_size = driver.get_window_size()
+window_width = window_size['width']
+window_height = window_size['height']
+
+# 화면 중앙 좌표를 계산합니다.
+center_x = window_width / 2
+center_y = window_height / 2
+
+# ActionChains를 사용하여 계산된 좌표를 클릭합니다.
+actions = ActionChains(driver)
+actions.move_to_location(center_x, center_y).click().perform()
+print(f"✅ 화면 중앙 ({center_x}, {center_y}) 좌표 클릭 성공!")
+time.sleep(1) # 클릭 후 페이지 반응을 기다립니다.
 
 # -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -183,7 +192,7 @@ try:
 
 except TimeoutException:
     print("❌ URL 변경이 감지되지 않았습니다. 로그인 버튼 클릭이 실패했거나, 로그인에 실패했습니다.")
-    exit()
+    exit()  
 
 # =========================
 # 3) 랭킹 페이지 크롤링
