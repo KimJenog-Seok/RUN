@@ -127,18 +127,6 @@ def split_company_from_broadcast(text):
             return cleaned, key, PLATFORM_MAP[key]
     return text, "", ""
 
-from selenium.common.exceptions import TimeoutException
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
-import time
-
-from selenium.common.exceptions import TimeoutException
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
-import time
-
 # 로그인 페이지 진입 및 자격 증명 입력 (기존 코드와 동일)
 driver.get("https://live.ecomm-data.com")
 WebDriverWait(driver, 20).until(
@@ -158,10 +146,13 @@ password_input = WebDriverWait(driver, 20).until(
 email_input.clear();    email_input.send_keys(ECOMM_ID)
 password_input.clear(); password_input.send_keys(ECOMM_PW)
 
-form = driver.find_element(By.TAG_NAME, "form")
-login_button = form.find_element(By.XPATH, ".//button[contains(text(), '로그인')]")
-driver.execute_script("arguments[0].click();", login_button)
-print("✅ 로그인 시도!")
+login_button = WebDriverWait(driver, 20).until(
+    EC.element_to_be_clickable((By.XPATH, "//form//button[contains(text(), '로그인')]"))
+)
+print("✅ 로그인 버튼을 찾았습니다.")
+login_button.click()
+print("✅ 로그인 버튼 클릭 성공!")
+
 print("로그인 버튼 클릭 직후 현재 URL:", driver.current_url) 
 
 # -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
