@@ -355,7 +355,8 @@ def main():
         raise
     finally:
         driver.quit()
-        # 7) INS_전일 (집계/출력)
+
+    # 7) INS_전일 (집계/출력)
     try:
         # 최신 데이터는 new_ws 기반
         values = new_ws.get_all_values() or [[""]]
@@ -499,15 +500,6 @@ def main():
             sh.reorder_worksheets(new_order)
             print("✅ 시트 순서 재배치 완료: INS_전일=1번째, 어제시트=2번째")
 
-            # (옵션) 탭 색상도 적용 가능
-            # red = {"red": 1.0, "green": 0.0, "blue": 0.0}
-            # sh.batch_update({
-            #     "requests": [
-            #         {"updateSheetProperties": {"properties": {"sheetId": ws.id, "tabColor": red}, "fields": "tabColor"}},
-            #         {"updateSheetProperties": {"properties": {"sheetId": new_ws.id, "tabColor": red}, "fields": "tabColor"}}
-            #     ]
-            # })
-            # print("✅ 탭 색상 적용(옵션)")
         except Exception as e:
             print("⚠️ 시트 순서/색상 처리 중 오류:", e)
 
