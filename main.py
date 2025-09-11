@@ -355,9 +355,7 @@ def main():
         raise
     finally:
         driver.quit()
-
-    # 7) INS_전일 (집계/출력)
-    #    — 원 코드의 집계/서식 적용 로직을 아래와 같이 구성
+        # 7) INS_전일 (집계/출력)
     try:
         # 최신 데이터는 new_ws 기반
         values = new_ws.get_all_values() or [[""]]
@@ -367,20 +365,56 @@ def main():
         df_ins = pd.DataFrame(body, columns=header)
 
         for col in ["판매량","매출액","홈쇼핑구분","회사명","분류"]:
-            if col not in df_ins.columns: df_ins[col] = ""
+            if col not in df_ins.columns:
+                df_ins[col] = ""
         df_ins["판매량_int"] = df_ins["판매량"].apply(_to_int_kor)
         df_ins["매출액_int"] = df_ins["매출액"].apply(_to_int_kor)
+
+        # 집계
+        def _agg_two(df, group_cols):
+            g = (df.groupby(group_cols, dropna=False)
+                    .agg(매출합=("매출액_int","sum"),
+                         판매량합=("판매량_int","sum"))
+                    .reset_index()
+                    .sort_values("매출합", ascending=False))
+            return g
+
+        def _format_df_table(df):
+            d = df.copy()
+            d["매출합"] = d["매출합"].apply(format_sales)
+            d["판매량합"] = d["판매량합"].apply(format_num)
+            return [d.columns.tolist()] + d.astype(str).values.tolist()
 
         gubun_tbl = _agg_two(df_ins, ["홈쇼핑구분"])
         plat_tbl  = _agg_two(df_ins, ["회사명"])
         cat_tbl   = _agg_two(df_ins, ["분류"])
 
         sheet_data = []
-        sheet_data.append(["[LIVE/TC 집계]"]); sheet_data += _format_df_table(gubun_tbl); sheet_data.append([""])
-        sheet_data.append(["[플랫폼(회사명) 집계]"]); sheet_data += _format_df_table(plat_tbl); sheet_data.append([""])
-        sheet_data.append(["[상품분류(분류) 집계]"]); sheet_data += _format_df_table(cat_tbl)
+        sheet_data.append(["[LIVE/TC 집계]"])
+        sheet_data += _format_df_table(gubun_tbl)
+        sheet_data.append([""])
 
-        # 신규 진입 상품 (최신 날짜 vs 과거 전체)
+        sheet_data.append(["[플랫폼(회사명) 집계]"])
+        sheet_data += _format_df_table(plat_tbl)
+        sheet_data.append([""])
+
+        sheet_data.append(["[상품분류(분류) 집계]"])
+        sheet_data += _format_df_table(cat_tbl)
+
+        # 신규 진입 상품(최신 날짜 전체 비교)
+        def _norm_text(s: str) -> str:
+            if s is None: return ""
+            t = str(s).replace("\n"," ").replace("\r"," ").replace("\t"," ")
+            t = re.sub(r"[·/【】\[\]\(\)]", " ", t)
+            return re.sub(r"\s+"," ", t).strip()
+
+        def _make_key(df):
+            for c in ["방송정보","회사명"]:
+                if c not in df.columns: df[c] = ""
+            a = df["방송정보"].apply(_norm_text).astype(str)
+            b = df["회사명"].apply(_norm_text).astype(str)
+            return a + "||" + b
+
         all_ws_objs = sh.worksheets()
         date_ws_objs = [w for w in all_ws_objs if re.match(r"^\d{1,2}/\d{1,2}(-\d+)?$", w.title)]
 
@@ -395,6 +429,7 @@ def main():
 
             latest_ws_obj = max(date_ws_objs, key=lambda w: _parse_md_suffix(w.title))
             latest_title = latest_ws_obj.title
+
             latest_vals = latest_ws_obj.get_all_values() or [[""]]
             latest_header = latest_vals[0] if latest_vals else []
             latest_df = pd.DataFrame(latest_vals[1:], columns=latest_header) if len(latest_vals) >= 2 else pd.DataFrame(columns=["방송정보","회사명","분류","판매량","매출액"])
@@ -406,7 +441,6 @@ def main():
 
             hist_keys = set()
             for w in date_ws_objs:
-                m = w.title
                 if w.id == latest_ws_obj.id:
                     continue
                 prev_vals = w.get_all_values() or [[""]]
@@ -443,66 +477,41 @@ def main():
         # INS_전일 upsert
         TARGET_TITLE = "INS_전일"
         try:
-            ws = sh.worksheet(TARGET_TITLE); ws.clear()
+            ws = sh.worksheet(TARGET_TITLE)
+            ws.clear()
         except gspread.exceptions.WorksheetNotFound:
             rows_cnt = max(2, len(sheet_data))
             cols_cnt = max(2, max(len(r) for r in sheet_data))
             ws = sh.add_worksheet(title=TARGET_TITLE, rows=rows_cnt, cols=cols_cnt)
         ws.update("A1", sheet_data)
-        # --- 시트 순서 재배치: INS_전일을 1번째, 어제날짜 시트를 2번째로 ---
-try:
-    # sh: gspread Spreadsheet 객체
-    # ws: INS_전일 Worksheet (위에서 upsert된 객체)
-    # new_ws: 어제 날짜 Worksheet (앞서 만든 객체)
-    all_ws_now = sh.worksheets()
-
-    new_order = []
-    # 1) INS_전일 먼저
-    new_order.append(ws)
-    # 2) 어제 날짜 시트(중복 방지)
-    if new_ws.id != ws.id:
-        new_order.append(new_ws)
-    # 3) 나머지 시트들 순서대로
-    for w in all_ws_now:
-        if w.id not in (ws.id, new_ws.id):
-            new_order.append(w)
-
-    sh.reorder_worksheets(new_order)
-    print("✅ 시트 순서 재배치 완료: INS_전일=1번째, 어제시트=2번째")
-
-    # (옵션) 탭 색상도 설정 가능 — 원 코드 참고
-    # 빨강 지정 예시:
-    red = {"red": 1.0, "green": 0.0, "blue": 0.0}
-    req = {
-        "requests": [
-            {
-                "updateSheetProperties": {
-                    "properties": {"sheetId": ws.id, "tabColor": red},
-                    "fields": "tabColor"
-                }
-            },
-            {
-                "updateSheetProperties": {
-                    "properties": {"sheetId": new_ws.id, "tabColor": red},
-                    "fields": "tabColor"
-                }
-            }
-        ]
-    }
-    sh.batch_update(req)
-    print("✅ 탭 색상 적용 완료(빨강)")
-except Exception as e:
-    print("⚠️ 시트 순서/색상 처리 중 오류:", e)
-
-
         print("✅ INS_전일 생성/갱신 완료")
 
-        # (선택) 스타일링/열폭/정렬은 필요 시 이어붙이면 됨
-        # 원본 스타일링 루틴은 길어서 생략 가능. 필요하면 그대로 이식 가능. :contentReference[oaicite:1]{index=1}
+        # --- 시트 순서 재배치: INS_전일=1번째, 어제시트=2번째 ---
+        try:
+            all_ws_now = sh.worksheets()
+            new_order = []
+            new_order.append(ws)            # 1) INS_전일
+            if new_ws.id != ws.id:          # 2) 어제 날짜 시트
+                new_order.append(new_ws)
+            for w in all_ws_now:            # 3) 나머지 시트
+                if w.id not in (ws.id, new_ws.id):
+                    new_order.append(w)
+            sh.reorder_worksheets(new_order)
+            print("✅ 시트 순서 재배치 완료: INS_전일=1번째, 어제시트=2번째")
+
+            # (옵션) 탭 색상도 적용 가능
+            # red = {"red": 1.0, "green": 0.0, "blue": 0.0}
+            # sh.batch_update({
+            #     "requests": [
+            #         {"updateSheetProperties": {"properties": {"sheetId": ws.id, "tabColor": red}, "fields": "tabColor"}},
+            #         {"updateSheetProperties": {"properties": {"sheetId": new_ws.id, "tabColor": red}, "fields": "tabColor"}}
+            #     ]
+            # })
+            # print("✅ 탭 색상 적용(옵션)")
+        except Exception as e:
+            print("⚠️ 시트 순서/색상 처리 중 오류:", e)
 
     except Exception as e:
         print("⚠️ INS_전일 생성 중 오류:", e)
 
-
-if __name__ == "__main__":
-    main()
+    
