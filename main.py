@@ -352,18 +352,18 @@ def main():
         new_ws.update("A1", final_data)
         print("✅ 방송정보 말미 회사명 제거 + 회사명/홈쇼핑구분 열 추가 완료")
 
-        # --- 어제 시트 표 서식 지정 (A1:H101) ---
+                # --- 어제 시트 표 서식 지정 (A1:J101) ---
         try:
             reqs = [
-                # 1. 테두리 적용
+                # 1) A1:J101 모든 방향 테두리
                 {
                     "updateBorders": {
                         "range": {
                             "sheetId": new_ws.id,
-                            "startRowIndex": 0,
-                            "endRowIndex": 101,
-                            "startColumnIndex": 0,
-                            "endColumnIndex": 8
+                            "startRowIndex": 0,   # A1 시작
+                            "endRowIndex": 101,   # 101행까지
+                            "startColumnIndex": 0,# A열 시작
+                            "endColumnIndex": 10  # J열(0-based 10) 직전 인덱스
                         },
                         "top":    {"style": "SOLID"},
                         "bottom": {"style": "SOLID"},
@@ -373,7 +373,7 @@ def main():
                         "innerVertical":   {"style": "SOLID"},
                     }
                 },
-                # 2. 헤더 행 (A1:H1) 가운데 정렬 + 회색 배경
+                # 2) 헤더 A1:J1 가운데 정렬 + 회색 배경
                 {
                     "repeatCell": {
                         "range": {
@@ -381,7 +381,7 @@ def main():
                             "startRowIndex": 0,
                             "endRowIndex": 1,
                             "startColumnIndex": 0,
-                            "endColumnIndex": 8
+                            "endColumnIndex": 10
                         },
                         "cell": {
                             "userEnteredFormat": {
@@ -392,7 +392,7 @@ def main():
                         "fields": "userEnteredFormat(horizontalAlignment,backgroundColor)"
                     }
                 },
-                # 3. A열(랭킹), C열(분류) 가운데 정렬
+                # 3) A2:A101 가운데 정렬
                 {
                     "repeatCell": {
                         "range": {
@@ -406,20 +406,21 @@ def main():
                         "fields": "userEnteredFormat.horizontalAlignment"
                     }
                 },
+                # 3-2) C1:J101 가운데 정렬 (헤더 포함 C~J 전 범위)
                 {
                     "repeatCell": {
                         "range": {
                             "sheetId": new_ws.id,
-                            "startRowIndex": 1,
+                            "startRowIndex": 0,
                             "endRowIndex": 101,
-                            "startColumnIndex": 2,
-                            "endColumnIndex": 3
+                            "startColumnIndex": 2,  # C열
+                            "endColumnIndex": 10    # J열(0-based 10)
                         },
                         "cell": {"userEnteredFormat": {"horizontalAlignment": "CENTER"}},
                         "fields": "userEnteredFormat.horizontalAlignment"
                     }
                 },
-                # 4. B열(방송정보) 왼쪽 정렬
+                # 4) B2:B101 왼쪽 정렬
                 {
                     "repeatCell": {
                         "range": {
@@ -432,12 +433,26 @@ def main():
                         "cell": {"userEnteredFormat": {"horizontalAlignment": "LEFT"}},
                         "fields": "userEnteredFormat.horizontalAlignment"
                     }
+                },
+                # 5) B열 전체 열폭 650px
+                {
+                    "updateDimensionProperties": {
+                        "range": {
+                            "sheetId": new_ws.id,
+                            "dimension": "COLUMNS",
+                            "startIndex": 1,  # B열
+                            "endIndex": 2
+                        },
+                        "properties": { "pixelSize": 650 },
+                        "fields": "pixelSize"
+                    }
                 }
             ]
             sh.batch_update({"requests": reqs})
-            print("✅ 어제 시트 서식 지정 완료")
+            print("✅ 어제 시트 서식 지정 완료 (A1:J101 + B열 650px)")
         except Exception as e:
             print("⚠️ 어제 시트 서식 지정 실패:", e)
+
 
 
         # 8) INS_전일 생성/갱신
