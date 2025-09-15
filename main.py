@@ -446,6 +446,19 @@ def main():
                         "properties": { "pixelSize": 650 },
                         "fields": "pixelSize"
                     }
+                },
+                # 6) I열 전체 열폭 120px
+                {
+                    "updateDimensionProperties": {
+                        "range": {
+                            "sheetId": new_ws.id,
+                            "dimension": "COLUMNS",
+                            "startIndex": 8,  # I열
+                            "endIndex": 9
+                        },
+                        "properties": { "pixelSize": 120 },
+                        "fields": "pixelSize"
+                    }
                 }
             ]
             sh.batch_update({"requests": reqs})
