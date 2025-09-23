@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,8 +31,14 @@ jobs:
 
       - name: Run main.py
         env:
-          ID1: ${{ secrets.ID1 }} # 👈 이 부분이 핵심
-          PW1: ${{ secrets.PW1 }} # 👈 이 부분이 핵심
-          KEY1: ${{ secrets.KEY1 }} # 👈 이 부분이 핵심
+          KEY1: ${{ secrets.KEY1 }} # 구글 시트 인증 정보는 보안상 필요
         run: |
           python main.py
+
+      - name: Upload debug artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-artifacts
+          path: artifacts/
+          retention-days: 1
