@@ -37,8 +37,7 @@ WORKSHEET_NAME = "홈쇼핑TOP100"
 # 유틸
 # ------------------------------------------------------------
 def make_driver():
-# GitHub Actions/서버/로컬 공용 크롬 드라이버 (Headless).
-    opts = webdriver.ChromeOptions()
+    opts = webdriver.ChromeOptions()
     opts.add_argument("--headless=new")
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
