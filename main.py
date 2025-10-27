@@ -147,9 +147,9 @@ def crawl_ranking(driver):
         cols = row.find_elements(By.TAG_NAME, "td")
         if len(cols) >= 8:
             item = {
-                "랭킹":   cols[0].text.strip(),
+                "랭킹":    cols[0].text.strip(),
                 "방송정보": cols[1].text.strip(),
-                "분류":   cols[2].text.strip(),
+                "분류":    cols[2].text.strip(),
                 "방송시간": cols[3].text.strip(),
                 "시청률":  cols[4].text.strip(),
                 "판매량":  cols[5].text.strip(),
@@ -222,73 +222,7 @@ def split_company_from_broadcast(text):
             return cleaned, key, PLATFORM_MAP[key]
     return text, "", ""
 
-def _to_int_kor(s):
-    if s is None:
-        return 0
-    t = str(s).strip()
-    if t == "" or t == "-":
-        return 0
-    t = t.replace(",", "").replace(" ", "")
-    if re.fullmatch(r"-?\d+(\.\d+)?", t):
-        return int(float(t))
-    unit_map = {"억": 100_000_000, "만": 10_000}
-    m = re.fullmatch(r"(-?\d+(?:\.\d+)?)(억|만)", t)
-    if m:
-        return int(float(m.group(1)) * unit_map[m.group(2)])
-    total = 0; rest = t
-    if "억" in rest:
-        parts = rest.split("억")
-        try: total += int(float(parts[0]) * unit_map["억"])
-        except: pass
-        rest = parts[1] if len(parts) > 1 else ""
-    if "만" in rest:
-        parts = rest.split("만")
-        try: total += int(float(parts[0]) * unit_map["만"])
-        except: pass
-        rest = parts[1] if len(parts) > 1 else ""
-    if re.fullmatch(r"-?\d+", rest):
-        total += int(rest)
-    if total == 0:
-        nums = re.findall(r"-?\d+", t)
-        return int(nums[0]) if nums else 0
-    return total
-
-def format_sales(v):
-    try: v = int(v)
-    except: return str(v)
-    return f"{v/100_000_000:.2f}억"
-
-def format_num(v):
-    try: v = int(v)
-    except: return str(v)
-    return f"{v:,}"
-
-def _agg_two(df, group_cols):
-    g = (df.groupby(group_cols, dropna=False)
-            .agg(매출합=("매출액_int","sum"),
-                 판매량합=("판매량_int","sum"))
-            .reset_index()
-            .sort_values("매출합", ascending=False))
-    return g
-
-def _format_df_table(df):
-    d = df.copy()
-    d["매출합"] = d["매출합"].apply(format_sales)
-    d["판매량합"] = d["판매량합"].apply(format_num)
-    return [d.columns.tolist()] + d.astype(str).values.tolist()
-
-def _norm_text(s: str) -> str:
-    if s is None: return ""
-    t = str(s).replace("\n"," ").replace("\r"," ").replace("\t"," ")
-    t = re.sub(r"[·/【】\[\]\(\)]", " ", t)
-    return re.sub(r"\s+"," ", t).strip()
-
-def _make_key(df):
-    for c in ["방송정보","회사명"]:
-        if c not in df.columns: df[c] = ""
-    a = df["방송정보"].apply(_norm_text).astype(str)
-    b = df["회사명"].apply(_norm_text).astype(str)
-    return a + "||" + b
+# [NOTE] INS_전일 관련 유틸(format_sales 등)은 삭제되었습니다.
 
 # ------------------------------------------------------------
 # 메인
@@ -325,13 +259,15 @@ def main():
         print(f"✅ 구글시트 업로드 완료 (행수: {len(data_to_upload)})")
 
         # 6) 어제 날짜 새 시트 생성 & 값 복사 (반드시 생성되도록 가드)
-        base_title = make_yesterday_title_kst()      # 예: "9/10"
+        base_title = make_yesterday_title_kst()      # 예: "10/26"
         target_title = unique_sheet_title(sh, base_title)
         source_values = worksheet.get_all_values() or [[""]]
         rows_cnt = max(2, len(source_values))
         cols_cnt = max(2, max(len(r) for r in source_values))
         new_ws = sh.add_worksheet(title=target_title, rows=rows_cnt, cols=cols_cnt)
-        new_ws.update("A1", source_values)
+        
+        # [FIX] 경고 해결: (데이터, 범위) 순서로 변경
+        new_ws.update(source_values, "A1")
         print(f"✅ 어제 날짜 시트 생성/복사 완료 → {target_title}")
 
         # 7) 방송정보 말미 회사명 제거 + 회사명/구분 열 추가
@@ -349,7 +285,9 @@ def main():
             final_rows.append(padded + [company, gubun])
         final_data = [final_header] + final_rows
         new_ws.clear()
-        new_ws.update("A1", final_data)
+        
+        # [FIX] 경고 해결: (데이터, 범위) 순서로 변경
+        new_ws.update(final_data, "A1")
         print("✅ 방송정보 말미 회사명 제거 + 회사명/홈쇼핑구분 열 추가 완료")
 
                 # --- 어제 시트 표 서식 지정 (A1:J101) ---
@@ -466,195 +404,23 @@ def main():
         except Exception as e:
             print("⚠️ 어제 시트 서식 지정 실패:", e)
 
+        # [REMOVED] # 8) INS_전일 생성/갱신 로직 전체 삭제
+        # - API 할당량 초과(429 Error)의 원인이었던
+        # - '신규 진입 상품' 비교 로직(모든 과거 시트 순회)이
+        # - 이 섹션에서 함께 삭제되었습니다.
 
-
-        # 8) INS_전일 생성/갱신
-        values = new_ws.get_all_values() or [[""]]
-        if not values or len(values) < 2:
-            raise Exception("INS_전일 생성 실패: 데이터 행이 없습니다.")
-        header = values[0]; body = values[1:]
-        df_ins = pd.DataFrame(body, columns=header)
-
-        for col in ["판매량","매출액","홈쇼핑구분","회사명","분류"]:
-            if col not in df_ins.columns: df_ins[col] = ""
-        df_ins["판매량_int"] = df_ins["판매량"].apply(_to_int_kor)
-        df_ins["매출액_int"] = df_ins["매출액"].apply(_to_int_kor)
-
-        gubun_tbl = _agg_two(df_ins, ["홈쇼핑구분"])
-        plat_tbl = _agg_two(df_ins, ["회사명"])
-        cat_tbl = _agg_two(df_ins, ["분류"])
-
-        sheet_data = []
-        sheet_data.append(["[LIVE/TC 집계]"]); sheet_data += _format_df_table(gubun_tbl); sheet_data.append([""])
-        sheet_data.append(["[플랫폼(회사명) 집계]"]); sheet_data += _format_df_table(plat_tbl); sheet_data.append([""])
-        sheet_data.append(["[상품분류(분류) 집계]"]); sheet_data += _format_df_table(cat_tbl)
-
-        # 신규 진입 상품 (최신 날짜 vs 과거 전체)
-        def _norm_text(s: str) -> str:
-            if s is None: return ""
-            t = str(s).replace("\n"," ").replace("\r"," ").replace("\t"," ")
-            t = re.sub(r"[·/【】\[\]\(\)]", " ", t)
-            return re.sub(r"\s+"," ", t).strip()
-
-        def _make_key(df):
-            for c in ["방송정보","회사명"]:
-                if c not in df.columns: df[c] = ""
-            a = df["방송정보"].apply(_norm_text).astype(str)
-            b = df["회사명"].apply(_norm_text).astype(str)
-            return a + "||" + b
-
-        all_ws_objs = sh.worksheets()
-        date_ws_objs = [w for w in all_ws_objs if re.match(r"^\d{1,2}/\d{1,2}(-\d+)?$", w.title)]
-
-        if date_ws_objs:
-            def _parse_md_suffix(title: str):
-                base = title.split("-")[0]
-                m, d = map(int, base.split("/"))
-                suf = 1
-                mobj = re.search(r"-(\d+)$", title)
-                if mobj: suf = int(mobj.group(1))
-                return (m, d, suf)
-
-            latest_ws_obj = max(date_ws_objs, key=lambda w: _parse_md_suffix(w.title))
-            latest_title = latest_ws_obj.title
-
-            latest_vals = latest_ws_obj.get_all_values() or [[""]]
-            latest_header = latest_vals[0] if latest_vals else []
-            latest_df = pd.DataFrame(latest_vals[1:], columns=latest_header) if len(latest_vals) >= 2 else pd.DataFrame(columns=["방송정보","회사명","분류","판매량","매출액"])
-            for c in ["방송정보","회사명","분류","판매량","매출액"]:
-                if c not in latest_df.columns: latest_df[c] = ""
-            latest_df = latest_df.fillna("")
-            latest_df["__KEY__"] = _make_key(latest_df)
-            latest_keys = set(latest_df["__KEY__"])
-
-            hist_keys = set()
-            for w in date_ws_objs:
-                if w.id == latest_ws_obj.id:
-                    continue
-                prev_vals = w.get_all_values() or [[""]]
-                if not prev_vals or len(prev_vals) < 2:
-                    continue
-                prev_df = pd.DataFrame(prev_vals[1:], columns=prev_vals[0])
-                for c in ["방송정보","회사명"]:
-                    if c not in prev_df.columns: prev_df[c] = ""
-                prev_df = prev_df.fillna("")
-                hist_keys |= set(_make_key(prev_df))
-
-            new_keys = latest_keys - hist_keys
-            new_items = latest_df[latest_df["__KEY__"].isin(new_keys)].copy()
-            new_items["판매량"] = new_items["판매량"].apply(_to_int_kor).apply(format_num)
-            new_items["매출액"] = new_items["매출액"].apply(_to_int_kor).apply(format_sales)
-
-            sheet_data.append([""])
-            sheet_data.append([f"[신규 진입 상품] ({latest_title} 기준)"])
-            new_table = [["방송정보","회사명","분류","판매량","매출액"]]
-            if len(new_items) == 0:
-                new_table.append(["(신규 진입 없음)", "", "", "", ""])
-            else:
-                tmp = new_items.copy()
-                tmp["__매출액_int"] = tmp["매출액"].apply(_to_int_kor)
-                tmp = tmp.sort_values("__매출액_int", ascending=False)
-                new_table += tmp[["방송정보","회사명","분류","판매량","매출액"]].astype(str).values.tolist()
-            sheet_data += new_table
-        else:
-            sheet_data.append([""])
-            sheet_data.append(["[신규 진입 상품] (날짜 시트 없음)"])
-            sheet_data += [["방송정보","회사명","분류","판매량","매출액"],
-                           ["(비교 불가)", "", "", "", ""]]
-
-        # INS_전일 upsert
-        TARGET_TITLE = "INS_전일"
-        try:
-            ins_ws = sh.worksheet(TARGET_TITLE)
-            ins_ws.clear()
-            print("[GS] INS_전일 기존 워크시트 찾음 → 초기화")
-        except gspread.exceptions.WorksheetNotFound:
-            rows_cnt = max(2, len(sheet_data))
-            cols_cnt = max(2, max(len(r) for r in sheet_data))
-            ins_ws = sh.add_worksheet(title=TARGET_TITLE, rows=rows_cnt, cols=cols_cnt)
-            print("[GS] INS_전일 워크시트 생성")
-
-        ins_ws.update("A1", sheet_data)
-        print("✅ INS_전일 시트 데이터 업로드 완료")
-
-        # --- INS_전일 시트 서식 지정: START ---
-        try:
-            # 첫 번째 표(상품분류 집계) 헤더 행 찾기 및 서식 지정
-            header_row_idx = -1
-            for i, row in enumerate(sheet_data):
-                if len(row) > 0 and row[0] == '분류':
-                    header_row_idx = i
-                    break
-            
-            # 신규 진입 상품 표 헤더 행 찾기 및 서식 지정
-            new_items_header_row_idx = -1
-            for i, row in enumerate(sheet_data):
-                if row and row[0] == '방송정보':
-                    new_items_header_row_idx = i
-                    break
-
-            format_requests = []
-            
-            # 첫 번째 표 헤더 서식 지정
-            if header_row_idx != -1:
-                format_requests.append({
-                    "repeatCell": {
-                        "range": {
-                            "sheetId": ins_ws.id,
-                            "startRowIndex": header_row_idx,
-                            "endRowIndex": header_row_idx + 1,
-                            "startColumnIndex": 0,
-                            "endColumnIndex": 3
-                        },
-                        "cell": {
-                            "userEnteredFormat": {
-                                "backgroundColor": {"red": 0.9, "green": 0.9, "blue": 0.9},
-                                "textFormat": {"bold": True}
-                            }
-                        },
-                        "fields": "userEnteredFormat(backgroundColor,textFormat)"
-                    }
-                })
-            
-            # 신규 진입 상품 표 헤더 서식 지정
-            if new_items_header_row_idx != -1:
-                format_requests.append({
-                    "repeatCell": {
-                        "range": {
-                            "sheetId": ins_ws.id,
-                            "startRowIndex": new_items_header_row_idx,
-                            "endRowIndex": new_items_header_row_idx + 1,
-                            "startColumnIndex": 0,
-                            "endColumnIndex": 5
-                        },
-                        "cell": {
-                            "userEnteredFormat": {
-                                "backgroundColor": {"red": 0.9, "green": 0.9, "blue": 0.9},
-                                "textFormat": {"bold": True}
-                            }
-                        },
-                        "fields": "userEnteredFormat(backgroundColor,textFormat)"
-                    }
-                })
-            
-            if format_requests:
-                sh.batch_update({"requests": format_requests})
-                print("✅ INS_전일 시트 서식 지정 완료")
-        except Exception as e:
-            print("⚠️ INS_전일 시트 서식 지정 실패:", e)
-        # --- INS_전일 시트 서식 지정: END ---
-
-        # 9) 탭 순서 재배치: INS_전일 1번째, 어제시트 2번째
+        # 8) 탭 순서 재배치: 어제시트 1번째 (INS_전일 로직 삭제됨)
         try:
             all_ws_now = sh.worksheets()
-            new_order = [ins_ws]
-            if new_ws.id != ins_ws.id:
-                new_order.append(new_ws)
+            new_order = [new_ws] # 'new_ws'(어제시트)가 첫 번째
+            
+            # new_ws가 아닌 다른 모든 시트를 순서대로 뒤에 추가
             for w in all_ws_now:
-                if w.id not in (ins_ws.id, new_ws.id):
+                if w.id != new_ws.id:
                     new_order.append(w)
+            
             sh.reorder_worksheets(new_order)
-            print("✅ 시트 순서 재배치 완료: INS_전일=1번째, 어제시트=2번째")
+            print(f"✅ 시트 순서 재배치 완료: {new_ws.title} 시트가 1번째로 이동")
         except Exception as e:
             print("⚠️ 시트 순서 재배치 오류:", e)
 
