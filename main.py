@@ -200,7 +200,7 @@ def make_yesterday_title_kst():
     KST = timezone(timedelta(hours=9))
     today = datetime.now(KST).date()
     yday = today - timedelta(days=1)
-    return f"{yday.month}/{yday.day}"
+    return yday.strftime("%y/%m/%d")
 
 def unique_sheet_title(sh, base):
     title = base; n = 1
