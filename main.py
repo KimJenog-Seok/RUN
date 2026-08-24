@@ -25,7 +25,7 @@ ARTIFACT_DIR.mkdir(exist_ok=True)
 
 # 로그인 계정 (요청에 따라 하드코딩 유지)
 ECOMM_ID = "smt@trncompany.co.kr"
-ECOMM_PW = "sales4580!!"
+ECOMM_PW = "sales7777!!"
 
 RANKING_URL = "https://live.ecomm-data.com/ranking?period=1&cid=&date="
 
